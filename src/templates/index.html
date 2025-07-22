@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="/static/style.css">
+  </head>
+  <body>
+
+  <section class="section">
+    <div class="container">
+      <h1 class="title">
+        {{ title }}
+      </h1>
+      <p class="subtitle">
+        {{ subtitle }}
+      </p>
+
+      <ul>
+        {{ foreach url in monitoredUrl do }}
+        <li>url</li>
+        {{ done }}
+      <ul>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="columns">
+        <div class="column">
+          <form id="greetingForm" action="/greetings" method="POST">
+            <div class="field">
+              <label class="label">Name</label>
+              <div class="control">
+                <input id="nameInput" class="input" type="text" placeholder="Name">
+              </div>
+            </div>
+            <div class="field">
+              <div class="select">
+                <select id="colorInput">
+                  <option>Red</option>
+                  <option>Orange</option>
+                  <option>Yellow</option>
+                  <option>Green</option>
+                  <option>Blue</option>
+                  <option>Purple</option>
+                </select>
+              </div>
+            </div>
+            <div class="field">
+              <label class="label">City To Visit</label>
+              <div class="control">
+                <input id="cityInput" class="input" type="text" placeholder="City">
+              </div>
+            </div>
+            <div class="control">
+              <input type="submit" value="Submit Form" class="button is-primary"/>
+            </div>
+          </form>
+        </div>
+        <div class="column">
+          <section id="result" class="section"></section>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="/js/jquery.min.js"></script>
+  <script>
+    $("#greetingForm").submit(function(event) {
+      event.preventDefault(); // stop default HTML form submission
+
+      // gather form values
+      var formData = {
+        name: $("#nameInput").val(),
+        color: $("#colorInput").val(),
+        city: $("#cityInput").val()
+      };
+
+      // send JSON via POST
+      $.ajax({
+        url: "/greetings",
+        method: "POST",
+        contentType: "application/json",
+        data: JSON.stringify(formData),
+        success: function(response) {
+          console.log("Server response:", response);
+          $("#result").html(marked.parse(response));
+        },
+        error: function(xhr, status, error) {
+          console.error("Error:", error);
+        }
+      });
+    });
+  </script>
+  </body>
+</html>
