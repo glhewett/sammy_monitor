@@ -16,7 +16,6 @@ use clap::{Command, arg};
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
 use std::future::ready;
 use tera::Tera;
-use tokio;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -25,7 +24,6 @@ use settings::Settings;
 // Add these constants and types - you'll need to define them based on your app
 const APP_NAME: &str = "sammy_monitor";
 const APP_VERSION: &str = "0.1.0";
-
 
 #[derive(Clone)]
 struct AppState {

@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use uuid::Uuid;
 
 #[derive(Deserialize, Debug, Clone)]
+#[allow(dead_code)]
 pub struct MonitorConfig {
     pub id: Uuid,
     pub name: String,
@@ -18,6 +19,7 @@ pub struct Settings {
     pub monitors: Vec<MonitorConfig>,
 }
 
+#[allow(dead_code)]
 impl Settings {
     pub fn load(path: &PathBuf) -> Result<Settings, Error> {
         if !path.exists() {
@@ -185,7 +187,7 @@ enabled = true
         assert_eq!(monitor.name, "Test Monitor");
         assert_eq!(monitor.url, "https://example.org");
         assert_eq!(monitor.interval, 120);
-        assert_eq!(monitor.enabled, true);
+        assert!(monitor.enabled);
     }
 
     #[test]
@@ -201,7 +203,7 @@ enabled = true
 
         let settings = Settings::from_str(toml_content).expect("Failed to parse TOML");
         assert_eq!(settings.monitors.len(), 1);
-        assert_eq!(settings.monitors[0].enabled, true);
+        assert!(settings.monitors[0].enabled);
         assert_eq!(settings.monitors[0].name, "Enabled Monitor");
     }
 
@@ -218,7 +220,7 @@ enabled = false
 
         let settings = Settings::from_str(toml_content).expect("Failed to parse TOML");
         assert_eq!(settings.monitors.len(), 1);
-        assert_eq!(settings.monitors[0].enabled, false);
+        assert!(!settings.monitors[0].enabled);
         assert_eq!(settings.monitors[0].name, "Disabled Monitor");
     }
 
@@ -249,14 +251,14 @@ enabled = true
 
         let settings = Settings::from_str(toml_content).expect("Failed to parse TOML");
         assert_eq!(settings.monitors.len(), 3);
-        
-        assert_eq!(settings.monitors[0].enabled, true);
+
+        assert!(settings.monitors[0].enabled);
         assert_eq!(settings.monitors[0].name, "First Monitor");
-        
-        assert_eq!(settings.monitors[1].enabled, false);
+
+        assert!(!settings.monitors[1].enabled);
         assert_eq!(settings.monitors[1].name, "Second Monitor");
-        
-        assert_eq!(settings.monitors[2].enabled, true);
+
+        assert!(settings.monitors[2].enabled);
         assert_eq!(settings.monitors[2].name, "Third Monitor");
     }
 
@@ -300,7 +302,8 @@ enabled = true
 "#;
 
         let settings = Settings::from_str(toml_content).expect("Failed to parse TOML");
-        let enabled_monitors: Vec<&MonitorConfig> = settings.monitors
+        let enabled_monitors: Vec<&MonitorConfig> = settings
+            .monitors
             .iter()
             .filter(|monitor| monitor.enabled)
             .collect();
@@ -320,14 +323,14 @@ enabled = true
             enabled: true,
         };
 
-        assert_eq!(monitor.enabled, true);
-        
+        assert!(monitor.enabled);
+
         // Disable the monitor
         monitor.enabled = false;
-        assert_eq!(monitor.enabled, false);
-        
+        assert!(!monitor.enabled);
+
         // Re-enable the monitor
         monitor.enabled = true;
-        assert_eq!(monitor.enabled, true);
+        assert!(monitor.enabled);
     }
 }
