@@ -1,0 +1,89 @@
+<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .pencil-stroke { 
+        stroke: #2a2a2a; 
+        stroke-width: 1.5; 
+        fill: none; 
+        stroke-linecap: round; 
+        stroke-linejoin: round;
+      }
+      .light-stroke { 
+        stroke: #4a4a4a; 
+        stroke-width: 1; 
+        fill: none; 
+        stroke-linecap: round;
+      }
+      .eye-fill { fill: #2a2a2a; }
+      .background { fill: #fafafa; }
+    </style>
+  </defs>
+  
+  <!-- Background -->
+  <rect class="background" width="200" height="200"/>
+  
+  <!-- Head outline -->
+  <ellipse class="pencil-stroke" cx="100" cy="85" rx="35" ry="42"/>
+  
+  <!-- Hair/hairline -->
+  <path class="pencil-stroke" d="M 70 50 Q 100 45 130 50"/>
+  <path class="light-stroke" d="M 75 55 Q 90 52 105 55"/>
+  <path class="light-stroke" d="M 95 55 Q 110 52 125 55"/>
+  
+  <!-- Distinctive glasses -->
+  <circle class="pencil-stroke" cx="90" cy="78" r="12" stroke-width="2"/>
+  <circle class="pencil-stroke" cx="110" cy="78" r="12" stroke-width="2"/>
+  <path class="pencil-stroke" d="M 102 78 L 98 78" stroke-width="2"/>
+  <path class="pencil-stroke" d="M 78 78 L 72 76" stroke-width="2"/>
+  <path class="pencil-stroke" d="M 122 78 L 128 76" stroke-width="2"/>
+  
+  <!-- Eyes behind glasses -->
+  <circle class="eye-fill" cx="90" cy="78" r="3"/>
+  <circle class="eye-fill" cx="110" cy="78" r="3"/>
+  <circle fill="white" cx="91" cy="77" r="1"/>
+  <circle fill="white" cx="111" cy="77" r="1"/>
+  
+  <!-- Nose -->
+  <path class="pencil-stroke" d="M 98 85 L 102 85"/>
+  <path class="light-stroke" d="M 98 87 L 100 89 L 102 87"/>
+  
+  <!-- Mustache -->
+  <path class="pencil-stroke" d="M 92 95 Q 100 93 108 95" stroke-width="2"/>
+  
+  <!-- Mouth with characteristic smile -->
+  <path class="pencil-stroke" d="M 88 102 Q 100 108 112 102"/>
+  
+  <!-- Chin/jaw definition -->
+  <path class="light-stroke" d="M 85 115 Q 100 120 115 115"/>
+  
+  <!-- Bow tie -->
+  <path class="pencil-stroke" d="M 95 135 L 105 135 L 110 145 L 105 155 L 95 155 L 90 145 Z"/>
+  <path class="pencil-stroke" d="M 97 145 L 103 145"/>
+  <circle class="pencil-stroke" cx="100" cy="145" r="3"/>
+  
+  <!-- Shirt collar -->
+  <path class="pencil-stroke" d="M 85 155 L 100 145 L 115 155"/>
+  <path class="pencil-stroke" d="M 85 155 L 85 180"/>
+  <path class="pencil-stroke" d="M 115 155 L 115 180"/>
+  
+  <!-- Suit jacket lapels -->
+  <path class="pencil-stroke" d="M 75 160 L 85 155 L 85 180"/>
+  <path class="pencil-stroke" d="M 125 160 L 115 155 L 115 180"/>
+  
+  <!-- Monitoring theme elements -->
+  <!-- Small monitor/screen in corner -->
+  <rect class="pencil-stroke" x="15" y="15" width="25" height="18" rx="2"/>
+  <rect class="light-stroke" x="17" y="17" width="21" height="14"/>
+  <path class="light-stroke" d="M 20 22 L 35 22"/>
+  <path class="light-stroke" d="M 20 25 L 30 25"/>
+  <path class="light-stroke" d="M 20 28 L 33 28"/>
+  
+  <!-- Musical notes to represent the performance aspect -->
+  <circle class="light-stroke" cx="165" cy="25" r="3"/>
+  <path class="light-stroke" d="M 168 25 L 168 15"/>
+  <circle class="light-stroke" cx="175" cy="20" r="2"/>
+  <path class="light-stroke" d="M 177 20 L 177 12"/>
+  
+  <!-- Title text at bottom -->
+  <text x="100" y="190" text-anchor="middle" font-family="serif" font-size="12" fill="#2a2a2a">SAMMY MONITOR</text>
+</svg>
