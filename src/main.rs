@@ -212,3 +212,83 @@ async fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum_test::TestServer;
+
+    fn create_test_settings() -> Settings {
+        let monitors = vec![
+            settings::MonitorConfig {
+                id: uuid::Uuid::new_v4(),
+                name: "Test Site".to_string(),
+                url: "https://example.com".to_string(),
+                interval: 1,
+                enabled: true,
+            }
+        ];
+        Settings { monitors }
+    }
+
+    fn create_test_app_state() -> AppState {
+        let settings = create_test_settings();
+        AppState {
+            settings: Arc::new(settings),
+            templates: Arc::new(init_templates()),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_main_server_root_returns_200() {
+        let app_state = create_test_app_state();
+        let app = main_app(app_state);
+        let server = TestServer::new(app).unwrap();
+
+        let response = server.get("/").await;
+
+        assert_eq!(response.status_code(), 200);
+        let body = response.text();
+        // Check for HTML-encoded version of the title
+        assert!(body.contains("Sammy&#x27;s HTTP Monitor"));
+        assert!(body.contains("https:&#x2F;&#x2F;example.com"));
+        assert!(body.contains("<!DOCTYPE html"));
+    }
+
+    #[tokio::test]
+    async fn test_health_endpoint() {
+        let app_state = create_test_app_state();
+        let app = main_app(app_state);
+        let server = TestServer::new(app).unwrap();
+
+        let response = server.get("/health").await;
+
+        assert_eq!(response.status_code(), 200);
+        assert_eq!(response.text(), "OK");
+    }
+
+    #[tokio::test]
+    async fn test_metrics_endpoint() {
+        let app = metrics_app();
+        let server = TestServer::new(app).unwrap();
+
+        let response = server.get("/metrics").await;
+
+        assert_eq!(response.status_code(), 200);
+        // Metrics should be in Prometheus format
+        let body = response.text();
+        // Body might be empty initially, just check for 200 status
+        assert!(body.is_ascii());
+    }
+
+    #[tokio::test]
+    async fn test_unhandled_route_returns_404() {
+        let app_state = create_test_app_state();
+        let app = main_app(app_state);
+        let server = TestServer::new(app).unwrap();
+
+        let response = server.get("/nonexistent").await;
+
+        assert_eq!(response.status_code(), 404);
+    }
+}

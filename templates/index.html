@@ -18,10 +18,10 @@
       </p>
 
       <ul>
-        {{ foreach url in monitoredUrl do }}
-        <li>url</li>
-        {{ done }}
-      <ul>
+        {% for url in monitored_urls %}
+        <li>{{ url }}</li>
+        {% endfor %}
+      </ul>
     </div>
   </section>
 
