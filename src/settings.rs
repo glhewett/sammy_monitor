@@ -187,4 +187,147 @@ enabled = true
         assert_eq!(monitor.interval, 120);
         assert_eq!(monitor.enabled, true);
     }
+
+    #[test]
+    fn test_monitor_config_enabled_true() {
+        let toml_content = r#"
+[[monitors]]
+id = "550e8400-e29b-41d4-a716-446655440005"
+name = "Enabled Monitor"
+url = "https://enabled.com"
+interval = 60
+enabled = true
+"#;
+
+        let settings = Settings::from_str(toml_content).expect("Failed to parse TOML");
+        assert_eq!(settings.monitors.len(), 1);
+        assert_eq!(settings.monitors[0].enabled, true);
+        assert_eq!(settings.monitors[0].name, "Enabled Monitor");
+    }
+
+    #[test]
+    fn test_monitor_config_enabled_false() {
+        let toml_content = r#"
+[[monitors]]
+id = "550e8400-e29b-41d4-a716-446655440006"
+name = "Disabled Monitor"
+url = "https://disabled.com"
+interval = 60
+enabled = false
+"#;
+
+        let settings = Settings::from_str(toml_content).expect("Failed to parse TOML");
+        assert_eq!(settings.monitors.len(), 1);
+        assert_eq!(settings.monitors[0].enabled, false);
+        assert_eq!(settings.monitors[0].name, "Disabled Monitor");
+    }
+
+    #[test]
+    fn test_monitor_config_mixed_enabled_states() {
+        let toml_content = r#"
+[[monitors]]
+id = "550e8400-e29b-41d4-a716-446655440007"
+name = "First Monitor"
+url = "https://first.com"
+interval = 60
+enabled = true
+
+[[monitors]]
+id = "550e8400-e29b-41d4-a716-446655440008"
+name = "Second Monitor"
+url = "https://second.com"
+interval = 30
+enabled = false
+
+[[monitors]]
+id = "550e8400-e29b-41d4-a716-446655440009"
+name = "Third Monitor"
+url = "https://third.com"
+interval = 45
+enabled = true
+"#;
+
+        let settings = Settings::from_str(toml_content).expect("Failed to parse TOML");
+        assert_eq!(settings.monitors.len(), 3);
+        
+        assert_eq!(settings.monitors[0].enabled, true);
+        assert_eq!(settings.monitors[0].name, "First Monitor");
+        
+        assert_eq!(settings.monitors[1].enabled, false);
+        assert_eq!(settings.monitors[1].name, "Second Monitor");
+        
+        assert_eq!(settings.monitors[2].enabled, true);
+        assert_eq!(settings.monitors[2].name, "Third Monitor");
+    }
+
+    #[test]
+    fn test_monitor_config_missing_enabled_field() {
+        let toml_content = r#"
+[[monitors]]
+id = "550e8400-e29b-41d4-a716-44665544000a"
+name = "Missing Enabled Field"
+url = "https://missing.com"
+interval = 60
+"#;
+
+        let result = Settings::from_str(toml_content);
+        assert!(result.is_err(), "Should fail when enabled field is missing");
+    }
+
+    #[test]
+    fn test_settings_get_enabled_monitors() {
+        let toml_content = r#"
+[[monitors]]
+id = "550e8400-e29b-41d4-a716-44665544000b"
+name = "Active Monitor 1"
+url = "https://active1.com"
+interval = 60
+enabled = true
+
+[[monitors]]
+id = "550e8400-e29b-41d4-a716-44665544000c"
+name = "Inactive Monitor"
+url = "https://inactive.com"
+interval = 30
+enabled = false
+
+[[monitors]]
+id = "550e8400-e29b-41d4-a716-44665544000d"
+name = "Active Monitor 2"
+url = "https://active2.com"
+interval = 45
+enabled = true
+"#;
+
+        let settings = Settings::from_str(toml_content).expect("Failed to parse TOML");
+        let enabled_monitors: Vec<&MonitorConfig> = settings.monitors
+            .iter()
+            .filter(|monitor| monitor.enabled)
+            .collect();
+
+        assert_eq!(enabled_monitors.len(), 2);
+        assert_eq!(enabled_monitors[0].name, "Active Monitor 1");
+        assert_eq!(enabled_monitors[1].name, "Active Monitor 2");
+    }
+
+    #[test]
+    fn test_monitor_config_enable_disable() {
+        let mut monitor = MonitorConfig {
+            id: uuid::Uuid::parse_str("550e8400-e29b-41d4-a716-44665544000e").unwrap(),
+            name: "Toggle Monitor".to_string(),
+            url: "https://toggle.com".to_string(),
+            interval: 60,
+            enabled: true,
+        };
+
+        assert_eq!(monitor.enabled, true);
+        
+        // Disable the monitor
+        monitor.enabled = false;
+        assert_eq!(monitor.enabled, false);
+        
+        // Re-enable the monitor
+        monitor.enabled = true;
+        assert_eq!(monitor.enabled, true);
+    }
 }
