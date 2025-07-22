@@ -1,4 +1,5 @@
 mod settings;
+mod worker;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -20,6 +21,7 @@ use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use settings::Settings;
+use worker::Worker;
 
 // Add these constants and types - you'll need to define them based on your app
 const APP_NAME: &str = "sammy_monitor";
@@ -115,6 +117,11 @@ async fn start_main_server(app_state: AppState) {
     axum::serve(listener, app).await.unwrap();
 }
 
+async fn start_worker(settings: Settings) {
+    let worker = Worker::new(settings);
+    worker.start().await;
+}
+
 fn init_templates() -> Tera {
     // Load all .html or .tera templates in templates/ directory
     Tera::new("templates/*.html").expect("Failed to initialize Tera")
@@ -200,8 +207,8 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let (_main_server, _metrics_server) =
-        tokio::join!(start_main_server(state), start_metrics_server());
+    let (_main_server, _metrics_server, _worker) =
+        tokio::join!(start_main_server(state), start_metrics_server(), start_worker(settings));
 
     Ok(())
 }
