@@ -1,7 +1,9 @@
-use log::{error, info, warn};
+use log::{error, info};
 use reqwest::Client;
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
+use uuid::Uuid;
 
 use crate::settings::{MonitorConfig, Settings};
 
@@ -21,6 +23,7 @@ pub struct MonitorResult {
 pub struct Worker {
     client: Client,
     settings: Settings,
+    last_run_times: HashMap<Uuid, Instant>,
 }
 
 impl Worker {
@@ -31,42 +34,66 @@ impl Worker {
             .build()
             .expect("Failed to create HTTP client");
 
-        Self { client, settings }
+        Self { 
+            client, 
+            settings,
+            last_run_times: HashMap::new(),
+        }
     }
 
-    pub async fn start(&self) {
+    pub async fn start(&mut self) {
         info!("Worker started with {} monitors", self.settings.monitors.len());
         
         loop {
-            self.check_all_monitors().await;
+            let loop_start = Instant::now();
+            self.check_due_monitors().await;
             
-            // Calculate sleep duration based on the minimum interval
-            let min_interval = self.settings.monitors
-                .iter()
-                .filter(|monitor| monitor.enabled)
-                .map(|monitor| monitor.interval)
-                .min()
-                .unwrap_or(60);
+            // Sleep for 1 minute minus the runtime
+            let runtime = loop_start.elapsed();
+            let sleep_duration = if runtime < Duration::from_secs(60) {
+                Duration::from_secs(60) - runtime
+            } else {
+                Duration::from_millis(100) // Minimum sleep to prevent busy loop
+            };
             
-            info!("Worker sleeping for {} seconds", min_interval);
-            sleep(Duration::from_secs(min_interval)).await;
+            info!("Worker completed in {}ms, sleeping for {}ms", 
+                  runtime.as_millis(), sleep_duration.as_millis());
+            sleep(sleep_duration).await;
         }
     }
 
-    async fn check_all_monitors(&self) {
-        let enabled_monitors: Vec<&MonitorConfig> = self.settings.monitors
-            .iter()
-            .filter(|monitor| monitor.enabled)
-            .collect();
+    async fn check_due_monitors(&mut self) {
+        let now = Instant::now();
+        let mut monitors_to_check = Vec::new();
 
-        if enabled_monitors.is_empty() {
-            warn!("No enabled monitors found");
+        for monitor in &self.settings.monitors {
+            if !monitor.enabled {
+                continue;
+            }
+
+            let should_run = match self.last_run_times.get(&monitor.id) {
+                Some(last_run) => {
+                    let time_since_last = now.duration_since(*last_run);
+                    let interval_duration = Duration::from_secs(monitor.interval * 60); // Convert minutes to seconds
+                    time_since_last >= interval_duration
+                }
+                None => true, // First run
+            };
+
+            if should_run {
+                monitors_to_check.push(monitor);
+                self.last_run_times.insert(monitor.id, now);
+            }
+        }
+
+        if monitors_to_check.is_empty() {
+            info!("No monitors due for checking this cycle");
             return;
         }
 
-        info!("Checking {} enabled monitors", enabled_monitors.len());
+        info!("Checking {} monitors due for testing", monitors_to_check.len());
 
-        for monitor in enabled_monitors {
+        for monitor in monitors_to_check {
             let result = self.check_monitor(monitor).await;
             self.log_result(&result);
         }
@@ -158,6 +185,7 @@ mod tests {
         let worker = Worker::new(settings);
         
         assert_eq!(worker.settings.monitors.len(), 0);
+        assert_eq!(worker.last_run_times.len(), 0);
     }
 
     #[test]
@@ -219,5 +247,73 @@ mod tests {
         assert_eq!(result.url, monitor.url);
         // Note: This test will actually make an HTTP request
         // In production, you'd want to mock the HTTP client
+    }
+
+    #[test]
+    fn test_interval_scheduling() {
+        let monitors = vec![
+            MonitorConfig {
+                id: Uuid::new_v4(),
+                name: "1min interval".to_string(),
+                url: "https://example1.com".to_string(),
+                interval: 1, // 1 minute
+                enabled: true,
+            },
+            MonitorConfig {
+                id: Uuid::new_v4(),
+                name: "2min interval".to_string(),
+                url: "https://example2.com".to_string(),
+                interval: 2, // 2 minutes
+                enabled: true,
+            },
+            MonitorConfig {
+                id: Uuid::new_v4(),
+                name: "Disabled".to_string(),
+                url: "https://disabled.com".to_string(),
+                interval: 1,
+                enabled: false,
+            },
+        ];
+
+        let settings = create_test_settings(monitors.clone());
+        let mut worker = Worker::new(settings);
+
+        // Initially, no monitors have been run
+        assert_eq!(worker.last_run_times.len(), 0);
+
+        // Simulate a first run - all enabled monitors should be due
+        let now = std::time::Instant::now();
+        for monitor in &monitors {
+            if monitor.enabled {
+                let should_run = match worker.last_run_times.get(&monitor.id) {
+                    Some(last_run) => {
+                        let time_since_last = now.duration_since(*last_run);
+                        let interval_duration = Duration::from_secs(monitor.interval * 60);
+                        time_since_last >= interval_duration
+                    }
+                    None => true, // First run
+                };
+                assert!(should_run, "Monitor {} should run on first cycle", monitor.name);
+            }
+        }
+
+        // Mark monitors as run
+        worker.last_run_times.insert(monitors[0].id, now);
+        worker.last_run_times.insert(monitors[1].id, now);
+
+        // Immediately after running, no monitors should be due
+        for monitor in &monitors {
+            if monitor.enabled {
+                let should_run = match worker.last_run_times.get(&monitor.id) {
+                    Some(last_run) => {
+                        let time_since_last = now.duration_since(*last_run);
+                        let interval_duration = Duration::from_secs(monitor.interval * 60);
+                        time_since_last >= interval_duration
+                    }
+                    None => true,
+                };
+                assert!(!should_run, "Monitor {} should not run immediately after being run", monitor.name);
+            }
+        }
     }
 }

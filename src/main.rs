@@ -118,7 +118,7 @@ async fn start_main_server(app_state: AppState) {
 }
 
 async fn start_worker(settings: Settings) {
-    let worker = Worker::new(settings);
+    let mut worker = Worker::new(settings);
     worker.start().await;
 }
 
