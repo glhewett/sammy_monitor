@@ -1,3 +1,5 @@
+mod settings;
+
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
@@ -12,63 +14,18 @@ use axum::{
 };
 use clap::{Command, arg};
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
-use serde::Deserialize;
-use std::fs::read_to_string;
 use std::future::ready;
-use std::io::{Error, ErrorKind};
 use tera::Tera;
 use tokio;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+use settings::Settings;
+
 // Add these constants and types - you'll need to define them based on your app
 const APP_NAME: &str = "sammy_monitor";
 const APP_VERSION: &str = "0.1.0";
 
-#[derive(Deserialize, Debug, Clone)]
-pub struct MonitorConfig {
-    pub name: String,
-    pub url: String,
-    pub interval: u64, // in seconds
-}
-
-#[derive(Deserialize, Debug, Clone)]
-pub struct Settings {
-    pub monitors: Vec<MonitorConfig>,
-}
-
-impl Settings {
-    pub fn load(path: &PathBuf) -> Result<Settings, Error> {
-        if !path.exists() {
-            return Err(Error::new(
-                ErrorKind::NotFound,
-                "Configuration was not found.",
-            ));
-        }
-
-        let config_file_contents = match read_to_string(path) {
-            Ok(contents) => contents,
-            Err(e) => {
-                return Err(Error::new(
-                    ErrorKind::NotFound,
-                    format!("Unable to read configuration. {}", e),
-                ));
-            }
-        };
-
-        let settings: Settings = match toml::from_str(config_file_contents.as_str()) {
-            Ok(token) => token,
-            Err(e) => {
-                return Err(Error::new(
-                    ErrorKind::NotFound,
-                    format!("Unable to parse configuration. {}", e),
-                ));
-            }
-        };
-
-        Ok(settings)
-    }
-}
 
 #[derive(Clone)]
 struct AppState {
