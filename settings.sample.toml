@@ -1,0 +1,34 @@
+# Sammy Monitor Configuration Sample
+# Copy this file to settings.toml and customize for your environment
+
+[[monitors]]
+# Unique identifier for this monitor (generate new UUIDs for your monitors)
+id = "550e8400-e29b-41d4-a716-446655440000"
+# Human-readable name for this monitor
+name = "Example Website"
+# URL to monitor (HTTP/HTTPS)
+url = "https://example.com"
+# Check interval in minutes (1 = every minute, 5 = every 5 minutes, etc.)
+interval = 5
+# Whether this monitor is enabled (true/false)
+enabled = true
+
+[[monitors]]
+id = "550e8400-e29b-41d4-a716-446655440001"
+name = "Google Search"
+url = "https://www.google.com"
+interval = 1
+enabled = true
+
+[[monitors]]
+id = "550e8400-e29b-41d4-a716-446655440002"
+name = "GitHub"
+url = "https://github.com"
+interval = 2
+enabled = false
+
+# Add more monitors as needed by copying the [[monitors]] block above
+# Remember to:
+# 1. Generate unique UUIDs for each monitor
+# 2. Set appropriate intervals based on your monitoring needs
+# 3. Enable/disable monitors as required
