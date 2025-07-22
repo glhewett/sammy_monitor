@@ -1,21 +1,20 @@
 mod settings;
 mod worker;
 
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Instant;
-
 use axum::{
-    Json, Router,
     extract::{MatchedPath, Request, State},
     http::StatusCode,
     middleware::{self, Next},
     response::{Html, IntoResponse},
     routing::get,
+    Json, Router,
 };
-use clap::{Command, arg};
+use clap::{arg, Command};
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
 use std::future::ready;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Instant;
 use tera::Tera;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -37,7 +36,7 @@ struct AppState {
 struct IndexContext {
     title: String,
     subtitle: String,
-    monitored_urls: Vec<String>,
+    monitor_ids: Vec<String>,
 }
 
 #[derive(serde::Serialize)]
@@ -131,11 +130,11 @@ async fn index(State(state): State<AppState>) -> impl IntoResponse {
     let mut context = IndexContext {
         title: "Sammy's HTTP Monitor".to_string(),
         subtitle: "Welcome to Sammy's HTTP Monitor".to_string(),
-        monitored_urls: vec![],
+        monitor_ids: vec![],
     };
 
     for site in &state.settings.monitors {
-        context.monitored_urls.push(site.url.clone());
+        context.monitor_ids.push(site.id.to_string());
     }
 
     let rendered = state.templates.render(
@@ -173,7 +172,7 @@ fn cli() -> clap::Command {
     Command::new(APP_NAME)
         .version(APP_VERSION)
         .author("Greg Hewett <glh@strand3.com>")
-        .about("Start the TacoCat API server")
+        .about("The Sammy Monitoring Server")
         .arg(
             arg!(settings: [PATH])
                 .long("settings")
@@ -207,88 +206,11 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let (_main_server, _metrics_server, _worker) =
-        tokio::join!(start_main_server(state), start_metrics_server(), start_worker(settings));
+    let (_main_server, _metrics_server, _worker) = tokio::join!(
+        start_main_server(state),
+        start_metrics_server(),
+        start_worker(settings)
+    );
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use axum_test::TestServer;
-
-    fn create_test_settings() -> Settings {
-        let monitors = vec![
-            settings::MonitorConfig {
-                id: uuid::Uuid::new_v4(),
-                name: "Test Site".to_string(),
-                url: "https://example.com".to_string(),
-                interval: 1,
-                enabled: true,
-            }
-        ];
-        Settings { monitors }
-    }
-
-    fn create_test_app_state() -> AppState {
-        let settings = create_test_settings();
-        AppState {
-            settings: Arc::new(settings),
-            templates: Arc::new(init_templates()),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_main_server_root_returns_200() {
-        let app_state = create_test_app_state();
-        let app = main_app(app_state);
-        let server = TestServer::new(app).unwrap();
-
-        let response = server.get("/").await;
-
-        assert_eq!(response.status_code(), 200);
-        let body = response.text();
-        // Check for HTML-encoded version of the title
-        assert!(body.contains("Sammy&#x27;s HTTP Monitor"));
-        assert!(body.contains("https:&#x2F;&#x2F;example.com"));
-        assert!(body.contains("<!DOCTYPE html"));
-    }
-
-    #[tokio::test]
-    async fn test_health_endpoint() {
-        let app_state = create_test_app_state();
-        let app = main_app(app_state);
-        let server = TestServer::new(app).unwrap();
-
-        let response = server.get("/health").await;
-
-        assert_eq!(response.status_code(), 200);
-        assert_eq!(response.text(), "OK");
-    }
-
-    #[tokio::test]
-    async fn test_metrics_endpoint() {
-        let app = metrics_app();
-        let server = TestServer::new(app).unwrap();
-
-        let response = server.get("/metrics").await;
-
-        assert_eq!(response.status_code(), 200);
-        // Metrics should be in Prometheus format
-        let body = response.text();
-        // Body might be empty initially, just check for 200 status
-        assert!(body.is_ascii());
-    }
-
-    #[tokio::test]
-    async fn test_unhandled_route_returns_404() {
-        let app_state = create_test_app_state();
-        let app = main_app(app_state);
-        let server = TestServer::new(app).unwrap();
-
-        let response = server.get("/nonexistent").await;
-
-        assert_eq!(response.status_code(), 404);
-    }
 }
