@@ -1,0 +1,9 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "sammy_monitor"
+    static_configs:
+      - targets: ["sammy_monitor:3001"]
+    scrape_interval: 30s
+    metrics_path: /metrics

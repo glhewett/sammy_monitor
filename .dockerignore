@@ -1,0 +1,29 @@
+# Dockerignore file for sammy_monitor
+target/
+Dockerfile*
+.dockerignore
+.git/
+.gitignore
+README.md
+.github/
+*.md
+.env*
+logs/
+*.log
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Rust specific
+**/*.rs.bk
+Cargo.lock
+
+# Keep sample settings but ignore actual settings
+settings.toml
