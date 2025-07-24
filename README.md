@@ -18,6 +18,38 @@ Sammy Monitor is a high-performance HTTP monitoring service built with Rust and 
 - **Robust Configuration**: TOML-based settings with comprehensive validation
 - **Health Checking**: Dedicated health endpoint for service monitoring
 
+## 🚀 Quick Start (Docker)
+
+Get up and running in under 2 minutes with the complete monitoring stack:
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/glhewett/sammy_monitor.git
+cd sammy_monitor
+
+# 2. Create your configuration from the sample
+cp settings.sample.toml settings.toml
+
+# 3. Edit settings.toml to add your websites to monitor
+# (Use any text editor to add your URLs, intervals, etc.)
+
+# 4. Start the complete monitoring stack
+docker-compose up -d
+
+# 5. Access your services:
+# • Sammy Monitor Dashboard: http://localhost:3000
+# • Grafana Dashboards: http://localhost:3002 (admin/admin) 
+# • Prometheus Metrics: http://localhost:9090
+```
+
+That's it! The system will automatically:
+- Build and start the Sammy Monitor service
+- Start Prometheus to collect metrics
+- Start Grafana with pre-configured dashboards
+- Begin monitoring your configured websites
+
+The Grafana dashboard will show each monitored site on its own row with response time graphs, uptime percentages, and current status indicators.
+
 ## Getting Started
 
 ### Prerequisites
