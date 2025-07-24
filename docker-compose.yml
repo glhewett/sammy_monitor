@@ -10,7 +10,6 @@ services:
       - "3001:3001"  # Metrics port
     volumes:
       - ./settings.toml:/app/settings.toml:ro
-      - ./templates:/app/templates:ro
     environment:
       - RUST_LOG=debug
     restart: unless-stopped
