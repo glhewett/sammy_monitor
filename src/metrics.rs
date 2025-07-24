@@ -283,7 +283,6 @@ mod tests {
         registry.record_success(monitor_id, 150);
 
         // Test passes if no panics occur
-        assert!(true);
     }
 
     #[test]
@@ -302,6 +301,5 @@ mod tests {
         registry.record_failure(monitor_id, 200, "http_error", Some(500));
 
         // Test passes if no panics occur
-        assert!(true);
     }
 }

@@ -199,7 +199,7 @@ impl Worker {
             let error_type = if result
                 .error_message
                 .as_ref()
-                .map_or(false, |msg| msg.contains("timeout"))
+                .is_some_and(|msg| msg.contains("timeout"))
             {
                 "timeout"
             } else if result.status_code.is_some() {
@@ -207,7 +207,7 @@ impl Worker {
             } else if result
                 .error_message
                 .as_ref()
-                .map_or(false, |msg| msg.contains("dns"))
+                .is_some_and(|msg| msg.contains("dns"))
             {
                 "dns_error"
             } else {
