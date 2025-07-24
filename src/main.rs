@@ -1,24 +1,24 @@
+mod metrics;
 mod settings;
 mod worker;
 
 use axum::{
-    extract::{MatchedPath, Request, State},
+    Json, Router,
+    extract::{Request, State},
     http::StatusCode,
     middleware::{self, Next},
     response::{Html, IntoResponse},
     routing::get,
-    Json, Router,
 };
-use clap::{arg, Command};
-use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
-use std::future::ready;
+use clap::{Command, arg};
+use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Instant;
 use tera::Tera;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+use metrics::init_metrics;
 use settings::Settings;
 use worker::Worker;
 
@@ -45,49 +45,23 @@ struct ApiError {
 }
 
 fn setup_metrics_recorder() -> PrometheusHandle {
-    const EXPONENTIAL_SECONDS: &[f64] = &[
-        0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
-    ];
-
-    PrometheusBuilder::new()
-        .set_buckets_for_metric(
-            Matcher::Full("http_requests_duration_seconds".to_string()),
-            EXPONENTIAL_SECONDS,
-        )
-        .unwrap()
+    let handle = PrometheusBuilder::new()
         .install_recorder()
-        .unwrap()
+        .expect("Failed to install Prometheus recorder");
+
+    init_metrics();
+    handle
 }
 
 async fn track_metrics(req: Request, next: Next) -> impl IntoResponse {
-    let start = Instant::now();
-    let path = if let Some(matched_path) = req.extensions().get::<MatchedPath>() {
-        matched_path.as_str().to_owned()
-    } else {
-        req.uri().path().to_owned()
-    };
-    let method = req.method().clone();
-
-    let response = next.run(req).await;
-
-    let latency = start.elapsed().as_secs_f64();
-    let status = response.status().as_u16().to_string();
-
-    let labels = [
-        ("method", method.to_string()),
-        ("path", path),
-        ("status", status),
-    ];
-
-    metrics::counter!("http_requests_total", &labels).increment(1);
-    metrics::histogram!("http_requests_duration_seconds", &labels).record(latency);
-
-    response
+    // HTTP monitoring metrics are now handled by the worker thread
+    // This middleware could be used for API endpoint metrics if needed
+    next.run(req).await
 }
 
 fn metrics_app() -> Router {
-    let recorder_handle = setup_metrics_recorder();
-    Router::new().route("/metrics", get(move || ready(recorder_handle.render())))
+    let handle = setup_metrics_recorder();
+    Router::new().route("/metrics", get(move || async move { handle.render() }))
 }
 
 fn main_app(app_state: AppState) -> Router {

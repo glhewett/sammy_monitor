@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 use tokio::time::sleep;
 use uuid::Uuid;
 
+use crate::metrics::{METRICS_REGISTRY, MonitorMetadata};
 use crate::settings::{MonitorConfig, Settings};
 
 #[derive(Debug, Clone)]
@@ -30,24 +31,41 @@ impl Worker {
     pub fn new(settings: Settings) -> Self {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
-            .user_agent(format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")))
+            .user_agent(format!(
+                "{}/{}",
+                env!("CARGO_PKG_NAME"),
+                env!("CARGO_PKG_VERSION")
+            ))
             .build()
             .expect("Failed to create HTTP client");
 
-        Self { 
-            client, 
+        // Register all monitors with metrics registry
+        for monitor in &settings.monitors {
+            let metadata = MonitorMetadata {
+                name: monitor.name.clone(),
+                url: monitor.url.clone(),
+                interval: monitor.interval,
+            };
+            METRICS_REGISTRY.register_monitor(monitor.id, metadata);
+        }
+
+        Self {
+            client,
             settings,
             last_run_times: HashMap::new(),
         }
     }
 
     pub async fn start(&mut self) {
-        info!("Worker started with {} monitors", self.settings.monitors.len());
-        
+        info!(
+            "Worker started with {} monitors",
+            self.settings.monitors.len()
+        );
+
         loop {
             let loop_start = Instant::now();
             self.check_due_monitors().await;
-            
+
             // Sleep for 1 minute minus the runtime
             let runtime = loop_start.elapsed();
             let sleep_duration = if runtime < Duration::from_secs(60) {
@@ -55,9 +73,12 @@ impl Worker {
             } else {
                 Duration::from_millis(100) // Minimum sleep to prevent busy loop
             };
-            
-            info!("Worker completed in {}ms, sleeping for {}ms", 
-                  runtime.as_millis(), sleep_duration.as_millis());
+
+            info!(
+                "Worker completed in {}ms, sleeping for {}ms",
+                runtime.as_millis(),
+                sleep_duration.as_millis()
+            );
             sleep(sleep_duration).await;
         }
     }
@@ -91,18 +112,22 @@ impl Worker {
             return;
         }
 
-        info!("Checking {} monitors due for testing", monitors_to_check.len());
+        info!(
+            "Checking {} monitors due for testing",
+            monitors_to_check.len()
+        );
 
         for monitor in monitors_to_check {
             let result = self.check_monitor(monitor).await;
             self.log_result(&result);
+            self.record_metrics(&result);
         }
     }
 
     async fn check_monitor(&self, monitor: &MonitorConfig) -> MonitorResult {
         let start_time = Instant::now();
         let timestamp = chrono::Utc::now();
-        
+
         info!("Checking monitor: {} ({})", monitor.name, monitor.url);
 
         match self.client.get(&monitor.url).send().await {
@@ -118,13 +143,17 @@ impl Worker {
                     success,
                     response_time_ms: response_time,
                     status_code: Some(status_code),
-                    error_message: if success { None } else { Some(format!("HTTP {}", status_code)) },
+                    error_message: if success {
+                        None
+                    } else {
+                        Some(format!("HTTP {}", status_code))
+                    },
                     timestamp,
                 }
             }
             Err(error) => {
                 let response_time = start_time.elapsed().as_millis() as u64;
-                
+
                 MonitorResult {
                     monitor_id: monitor.id,
                     monitor_name: monitor.name.clone(),
@@ -146,7 +175,10 @@ impl Worker {
                 result.monitor_name,
                 result.url,
                 result.response_time_ms,
-                result.status_code.map(|c| c.to_string()).unwrap_or_else(|| "N/A".to_string())
+                result
+                    .status_code
+                    .map(|c| c.to_string())
+                    .unwrap_or_else(|| "N/A".to_string())
             );
         } else {
             error!(
@@ -155,6 +187,38 @@ impl Worker {
                 result.url,
                 result.response_time_ms,
                 result.error_message.as_deref().unwrap_or("Unknown error")
+            );
+        }
+    }
+
+    fn record_metrics(&self, result: &MonitorResult) {
+        if result.success {
+            METRICS_REGISTRY.record_success(result.monitor_id, result.response_time_ms);
+        } else {
+            // Determine error type from the error message
+            let error_type = if result
+                .error_message
+                .as_ref()
+                .map_or(false, |msg| msg.contains("timeout"))
+            {
+                "timeout"
+            } else if result.status_code.is_some() {
+                "http_error"
+            } else if result
+                .error_message
+                .as_ref()
+                .map_or(false, |msg| msg.contains("dns"))
+            {
+                "dns_error"
+            } else {
+                "connection_error"
+            };
+
+            METRICS_REGISTRY.record_failure(
+                result.monitor_id,
+                result.response_time_ms,
+                error_type,
+                result.status_code,
             );
         }
     }
@@ -183,7 +247,7 @@ mod tests {
     fn test_worker_new() {
         let settings = create_test_settings(vec![]);
         let worker = Worker::new(settings);
-        
+
         assert_eq!(worker.settings.monitors.len(), 0);
         assert_eq!(worker.last_run_times.len(), 0);
     }
@@ -192,7 +256,7 @@ mod tests {
     fn test_monitor_result_creation() {
         let monitor_id = Uuid::new_v4();
         let timestamp = chrono::Utc::now();
-        
+
         let result = MonitorResult {
             monitor_id,
             monitor_name: "Test Monitor".to_string(),
@@ -220,9 +284,10 @@ mod tests {
             create_test_monitor("Disabled Monitor", "https://disabled.com", false),
             create_test_monitor("Another Enabled", "https://enabled2.com", true),
         ];
-        
+
         let settings = create_test_settings(monitors);
-        let enabled_monitors: Vec<&MonitorConfig> = settings.monitors
+        let enabled_monitors: Vec<&MonitorConfig> = settings
+            .monitors
             .iter()
             .filter(|monitor| monitor.enabled)
             .collect();
@@ -241,7 +306,7 @@ mod tests {
         let worker = Worker::new(settings);
 
         let result = worker.check_monitor(&monitor).await;
-        
+
         assert_eq!(result.monitor_id, monitor.id);
         assert_eq!(result.monitor_name, monitor.name);
         assert_eq!(result.url, monitor.url);
@@ -293,7 +358,11 @@ mod tests {
                     }
                     None => true, // First run
                 };
-                assert!(should_run, "Monitor {} should run on first cycle", monitor.name);
+                assert!(
+                    should_run,
+                    "Monitor {} should run on first cycle",
+                    monitor.name
+                );
             }
         }
 
@@ -312,7 +381,11 @@ mod tests {
                     }
                     None => true,
                 };
-                assert!(!should_run, "Monitor {} should not run immediately after being run", monitor.name);
+                assert!(
+                    !should_run,
+                    "Monitor {} should not run immediately after being run",
+                    monitor.name
+                );
             }
         }
     }
