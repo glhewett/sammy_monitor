@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use tokio::time::sleep;
 use uuid::Uuid;
 
-use crate::metrics::{METRICS_REGISTRY, MonitorMetadata};
+use crate::metrics::{MonitorMetadata, METRICS_REGISTRY};
 use crate::settings::{MonitorConfig, Settings};
 
 #[derive(Debug, Clone)]

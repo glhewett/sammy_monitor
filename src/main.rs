@@ -3,14 +3,14 @@ mod settings;
 mod worker;
 
 use axum::{
-    Json, Router,
     extract::{Request, State},
     http::StatusCode,
     middleware::{self, Next},
     response::{Html, IntoResponse},
     routing::get,
+    Json, Router,
 };
-use clap::{Command, arg};
+use clap::{arg, Command};
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use std::path::PathBuf;
 use std::sync::Arc;

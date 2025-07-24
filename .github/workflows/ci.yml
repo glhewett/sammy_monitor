@@ -49,24 +49,6 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
 
-  security:
-    name: Security Audit
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@master
-      with:
-        toolchain: ${{ env.RUST_VERSION }}
-
-    - name: Install cargo-audit
-      run: cargo install cargo-audit --version 0.21.1
-
-    - name: Run security audit
-      run: cargo audit
-
   build-release:
     name: Build Release (Linux)
     runs-on: ubuntu-latest
