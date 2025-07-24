@@ -1,5 +1,5 @@
 # Multi-stage build for smaller image size
-FROM rust:1.75-alpine as builder
+FROM rust:1.82-alpine as builder
 
 WORKDIR /app
 
