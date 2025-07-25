@@ -11,7 +11,7 @@ use axum::{
     Json, Router,
 };
 use clap::{arg, Command};
-use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
+use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle, Matcher};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tera::Tera;
@@ -46,6 +46,12 @@ struct ApiError {
 
 fn setup_metrics_recorder() -> PrometheusHandle {
     let handle = PrometheusBuilder::new()
+        .add_global_label("app", "sammy_monitor")
+        .set_buckets_for_metric(
+            Matcher::Full("http_monitor_response_time_seconds".to_string()),
+            &[0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0]
+        )
+        .expect("Failed to set histogram buckets")
         .install_recorder()
         .expect("Failed to install Prometheus recorder");
 
