@@ -1,5 +1,6 @@
 # Sammy Monitor Configuration Sample
 # Copy this file to settings.toml and customize for your environment
+prometheus_url = "http://web.local:9090"
 
 [[monitors]]
 # Unique identifier for this monitor (generate new UUIDs for your monitors)

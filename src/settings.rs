@@ -5,7 +5,6 @@ use std::path::PathBuf;
 use uuid::Uuid;
 
 #[derive(Deserialize, Debug, Clone)]
-#[allow(dead_code)]
 pub struct MonitorConfig {
     pub id: Uuid,
     pub name: String,
@@ -17,9 +16,9 @@ pub struct MonitorConfig {
 #[derive(Deserialize, Debug, Clone)]
 pub struct Settings {
     pub monitors: Vec<MonitorConfig>,
+    pub prometheus_url: Option<String>,
 }
 
-#[allow(dead_code)]
 impl Settings {
     pub fn load(path: &PathBuf) -> Result<Settings, Error> {
         if !path.exists() {
@@ -50,6 +49,12 @@ impl Settings {
         };
 
         Ok(settings)
+    }
+
+    pub fn get_prometheus_url(&self) -> String {
+        self.prometheus_url
+            .clone()
+            .unwrap_or_else(|| "http://localhost:9090".to_string())
     }
 
     pub fn from_str(content: &str) -> Result<Settings, Error> {
