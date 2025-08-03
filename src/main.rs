@@ -1,10 +1,5 @@
-//mod metrics;
-//mod prometheus_client;
-//mod settings;
-//mod worker;
-
 use axum::{
-    extract::{Path, Request, State},
+
     http::{StatusCode},
     middleware::{self, Next},
     response::{Html, IntoResponse},
@@ -22,6 +17,7 @@ use tera::Tera;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use sammy_monitor::worker::Worker;
+use axum::extract::State;
 
 // Add these constants and types - you'll need to define them based on your app
 const APP_NAME: &str = "sammy_monitor";
