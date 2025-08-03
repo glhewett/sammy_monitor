@@ -130,7 +130,13 @@ impl Worker {
 
         info!("Checking monitor: {} ({})", monitor.name, monitor.url);
 
-        match self.client.get(&monitor.url).header("X-Monitor-Id", monitor.id.to_string()).send().await {
+        match self
+            .client
+            .get(&monitor.url)
+            .header("X-Monitor-Id", monitor.id.to_string())
+            .send()
+            .await
+        {
             Ok(response) => {
                 let response_time = start_time.elapsed().as_millis() as u64;
                 let status_code = response.status().as_u16();
@@ -242,7 +248,10 @@ mod tests {
     }
 
     fn create_test_settings(monitors: Vec<MonitorConfig>) -> Settings {
-        Settings { prometheus_url: "http://foo:9090", monitors }
+        Settings {
+            prometheus_url: "http://foo:9090",
+            monitors,
+        }
     }
 
     #[test]

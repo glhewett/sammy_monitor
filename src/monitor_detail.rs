@@ -91,21 +91,26 @@ impl MonitorDetailContext {
             let is_up = result["value"][1].as_str().unwrap_or("0") == "1";
 
             // Calculate real uptime percentages using success/total requests
-            let uptime_24h = self.fetch_uptime(monitor_id, prometheus, "24h")
+            let uptime_24h = self
+                .fetch_uptime(monitor_id, prometheus, "24h")
                 .await
                 .unwrap_or(0.0);
-            let uptime_7d = self.fetch_uptime(monitor_id, prometheus, "7d")
+            let uptime_7d = self
+                .fetch_uptime(monitor_id, prometheus, "7d")
                 .await
                 .unwrap_or(0.0);
-            let uptime_30d = self.fetch_uptime(monitor_id, prometheus, "30d")
+            let uptime_30d = self
+                .fetch_uptime(monitor_id, prometheus, "30d")
                 .await
                 .unwrap_or(0.0);
 
             // Calculate real average response times
-            let avg_response_24h = self.fetch_avg_response(monitor_id, prometheus, "24h")
+            let avg_response_24h = self
+                .fetch_avg_response(monitor_id, prometheus, "24h")
                 .await
                 .unwrap_or(0.0);
-            let avg_response_7d = self.fetch_avg_response(monitor_id, prometheus, "7d")
+            let avg_response_7d = self
+                .fetch_avg_response(monitor_id, prometheus, "7d")
                 .await
                 .unwrap_or(0.0);
 
@@ -113,7 +118,8 @@ impl MonitorDetailContext {
             let graph_data = self.fetch_graph_data(monitor_id, prometheus).await.unwrap();
 
             // Generate recent incidents based on actual failures
-            let recent_incidents = self.fetch_incidents(monitor_id, prometheus)
+            let recent_incidents = self
+                .fetch_incidents(monitor_id, prometheus)
                 .await
                 .unwrap_or_else(|_| vec!["Unable to fetch recent incidents".to_string()]);
 

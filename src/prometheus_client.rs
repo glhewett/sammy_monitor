@@ -1,6 +1,6 @@
+use log::info;
 use serde_json::Value as JsonValue;
 use std::time::Instant;
-use log::info;
 
 #[derive(Debug, Clone)]
 pub struct PrometheusClient {

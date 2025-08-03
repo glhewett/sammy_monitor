@@ -1,23 +1,22 @@
+use axum::extract::State;
 use axum::{
-
-    http::{StatusCode},
+    http::StatusCode,
     middleware::{self, Next},
     response::{Html, IntoResponse},
     routing::get,
     Json, Router,
 };
 use clap::{arg, Command};
-use sammy_monitor::metrics::init_metrics;
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
-use sammy_monitor::prometheus_client::PrometheusClient;
+use sammy_monitor::metrics::init_metrics;
 use sammy_monitor::monitor_detail::MonitorDetailContext;
+use sammy_monitor::prometheus_client::PrometheusClient;
 use sammy_monitor::settings::{MonitorConfig, Settings};
+use sammy_monitor::worker::Worker;
 use std::path::PathBuf;
 use tera::Tera;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use sammy_monitor::worker::Worker;
-use axum::extract::State;
 
 // Add these constants and types - you'll need to define them based on your app
 const APP_NAME: &str = "sammy_monitor";
@@ -106,8 +105,11 @@ async fn monitor_detail(
     State(state): State<AppState>,
 ) -> impl IntoResponse {
     let monitor_detail_context = MonitorDetailContext::default();
-        
-    match monitor_detail_context.fetch(&monitor_id, &state.prometheus).await {
+
+    match monitor_detail_context
+        .fetch(&monitor_id, &state.prometheus)
+        .await
+    {
         Ok(context) => {
             // Debug: try to serialize context to see if there are issues
             match serde_json::to_string_pretty(&context) {
@@ -208,7 +210,6 @@ async fn _calculate_avg_response(
 
     Ok(0.0)
 }
-
 
 /// Fallback for unmatched routes.
 async fn unhandled() -> impl IntoResponse {
