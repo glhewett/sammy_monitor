@@ -2,6 +2,7 @@ use serde::Deserialize;
 use std::fs;
 use std::io::{Error, ErrorKind};
 use std::path::PathBuf;
+use std::str::FromStr;
 use uuid::Uuid;
 
 #[derive(Deserialize, Debug, Clone)]
@@ -33,7 +34,7 @@ impl Settings {
             Err(e) => {
                 return Err(Error::new(
                     ErrorKind::InvalidData,
-                    format!("Failed to read settings file: {}", e),
+                    format!("Failed to read settings file: {e}"),
                 ));
             }
         };
@@ -43,7 +44,7 @@ impl Settings {
             Err(e) => {
                 return Err(Error::new(
                     ErrorKind::InvalidData,
-                    format!("Failed to parse settings file: {}", e),
+                    format!("Failed to parse settings file: {e}"),
                 ));
             }
         };
@@ -57,12 +58,17 @@ impl Settings {
             .unwrap_or_else(|| "http://localhost:9090".to_string())
     }
 
-    pub fn from_str(content: &str) -> Result<Settings, Error> {
+}
+
+impl FromStr for Settings {
+    type Err = Error;
+
+    fn from_str(content: &str) -> Result<Settings, Error> {
         match toml::from_str(content) {
             Ok(settings) => Ok(settings),
             Err(e) => Err(Error::new(
                 ErrorKind::InvalidData,
-                format!("Failed to parse settings: {}", e),
+                format!("Failed to parse settings: {e}"),
             )),
         }
     }
@@ -92,7 +98,7 @@ interval = 30
 enabled = false
 "#;
 
-        let settings = Settings::from_str(toml_content).expect("Failed to parse valid TOML");
+        let settings: Settings = toml_content.parse().expect("Failed to parse valid TOML");
 
         assert_eq!(settings.monitors.len(), 2);
 
@@ -113,7 +119,7 @@ name = "Missing URL"
 interval = 60
 "#;
 
-        let result = Settings::from_str(invalid_toml);
+        let result: Result<Settings, _> = invalid_toml.parse();
         assert!(result.is_err());
     }
 
@@ -123,7 +129,7 @@ interval = 60
 monitors = []
 "#;
 
-        let settings = Settings::from_str(toml_content).expect("Failed to parse empty monitors");
+        let settings: Settings = toml_content.parse().expect("Failed to parse empty monitors");
         assert_eq!(settings.monitors.len(), 0);
     }
 
@@ -206,7 +212,7 @@ interval = 60
 enabled = true
 "#;
 
-        let settings = Settings::from_str(toml_content).expect("Failed to parse TOML");
+        let settings: Settings = toml_content.parse().expect("Failed to parse TOML");
         assert_eq!(settings.monitors.len(), 1);
         assert!(settings.monitors[0].enabled);
         assert_eq!(settings.monitors[0].name, "Enabled Monitor");
@@ -223,7 +229,7 @@ interval = 60
 enabled = false
 "#;
 
-        let settings = Settings::from_str(toml_content).expect("Failed to parse TOML");
+        let settings: Settings = toml_content.parse().expect("Failed to parse TOML");
         assert_eq!(settings.monitors.len(), 1);
         assert!(!settings.monitors[0].enabled);
         assert_eq!(settings.monitors[0].name, "Disabled Monitor");
@@ -254,7 +260,7 @@ interval = 45
 enabled = true
 "#;
 
-        let settings = Settings::from_str(toml_content).expect("Failed to parse TOML");
+        let settings: Settings = toml_content.parse().expect("Failed to parse TOML");
         assert_eq!(settings.monitors.len(), 3);
 
         assert!(settings.monitors[0].enabled);
@@ -277,7 +283,7 @@ url = "https://missing.com"
 interval = 60
 "#;
 
-        let result = Settings::from_str(toml_content);
+        let result: Result<Settings, _> = toml_content.parse();
         assert!(result.is_err(), "Should fail when enabled field is missing");
     }
 
@@ -306,7 +312,7 @@ interval = 45
 enabled = true
 "#;
 
-        let settings = Settings::from_str(toml_content).expect("Failed to parse TOML");
+        let settings: Settings = toml_content.parse().expect("Failed to parse TOML");
         let enabled_monitors: Vec<&MonitorConfig> = settings
             .monitors
             .iter()

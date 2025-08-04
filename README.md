@@ -14,9 +14,9 @@ Sammy Monitor is a high-performance HTTP monitoring service built with Rust and 
 - **Configurable Intervals**: Per-monitor timing (1 minute, 2 minutes, 5 minutes, etc.)
 - **Real-time Logging**: Detailed success/failure reporting with response times
 - **Prometheus Metrics**: Built-in metrics endpoint for monitoring integration
-- **Web Dashboard**: Clean HTML interface showing monitor status
+- **Email Alerting**: Automated email notifications for service failures and recoveries
+- **Advanced Queries**: Pre-calculated recording rules for better performance
 - **Robust Configuration**: TOML-based settings with comprehensive validation
-- **Health Checking**: Dedicated health endpoint for service monitoring
 
 ## 🚀 Quick Start (Docker)
 
@@ -30,31 +30,148 @@ cd sammy_monitor
 # 2. Create your configuration from the sample
 cp settings.sample.toml settings.toml
 
-# 3. Edit settings.toml to add your websites to monitor
+# 3. Configure email settings (optional)
+# Edit alertmanager.yml to set your SMTP server and email addresses
+
+# 4. Edit settings.toml to add your websites to monitor
 # (Use any text editor to add your URLs, intervals, etc.)
 
-# 4. Start the complete monitoring stack
+# 5. Start the complete monitoring stack
 docker-compose up -d
 
-# 5. Access your services:
-# • Sammy Monitor Dashboard: http://localhost:3000
-# • Grafana Dashboards: http://localhost:3002 (admin/admin) 
-# • Prometheus Metrics: http://localhost:9090
+# 6. Access your services:
+# • Sammy Monitor Metrics: http://localhost:3000/metrics
+# • Prometheus: http://localhost:9090
+# • Alertmanager: http://localhost:9093
 ```
 
 That's it! The system will automatically:
 - Build and start the Sammy Monitor service
-- Start Prometheus to collect metrics
-- Start Grafana with pre-configured dashboards
+- Start Prometheus to collect metrics and evaluate alerts
+- Start Alertmanager for email notifications
 - Begin monitoring your configured websites
+- Send email alerts when services fail for >5 minutes
 
-The Grafana dashboard will show each monitored site on its own row with response time graphs, uptime percentages, and current status indicators.
+## Email Alerts
+
+The system includes comprehensive email alerting:
+
+### Alert Types:
+- **🚨 CRITICAL**: Service down >5 minutes, very slow responses (>10s), SLA breaches
+- **⚠️ WARNING**: High error rates (>10%), slow responses (>5s)
+- **ℹ️ INFO**: Service recovery notifications, high traffic alerts
+
+### Configuration:
+Edit `alertmanager.yml` to configure your SMTP settings:
+
+```yaml
+global:
+  smtp_smarthost: 'your-smtp-server:587'
+  smtp_from: 'alerts@your-company.com'
+  smtp_auth_username: 'your-email@your-company.com'
+  smtp_auth_password: 'your-password'
+```
+
+## Prometheus Queries
+
+The system includes pre-calculated recording rules for efficient querying:
+
+### Useful Queries:
+
+**Service Status:**
+```promql
+# Current status (1=up, 0=down)
+http_monitor_up
+
+# Services currently down
+http_monitor_up == 0
+```
+
+**Uptime Calculations:**
+```promql
+# 5-minute uptime percentage
+monitor_uptime_5m
+
+# 24-hour uptime percentage  
+monitor_uptime_24h
+
+# 7-day uptime percentage
+monitor_uptime_7d
+```
+
+**Response Times:**
+```promql
+# 50th percentile response time
+monitor_response_time_p50
+
+# 95th percentile response time
+monitor_response_time_p95
+
+# 99th percentile response time
+monitor_response_time_p99
+
+# Average response time over 5 minutes
+monitor_avg_response_time_5m
+```
+
+**Error Rates:**
+```promql
+# Error rate over last 5 minutes
+monitor_error_rate_5m
+
+# Error rate over last hour
+monitor_error_rate_1h
+```
+
+**Request Rates:**
+```promql
+# Requests per second over 5 minutes
+monitor_request_rate_5m
+
+# Total requests (all time)
+increase(http_monitor_requests_total[24h])
+```
+
+**SLA Tracking:**
+```promql
+# Monthly SLA compliance (30 days)
+monitor_sla_monthly
+
+# Services below 99.5% SLA
+monitor_sla_monthly < 99.5
+```
+
+### Advanced Queries:
+
+**Service Health Overview:**
+```promql
+# All services with their current status and uptime
+{__name__=~"monitor_uptime_24h|http_monitor_up"}
+```
+
+**Performance Issues:**
+```promql
+# Services with slow response times (>2s P95)
+monitor_response_time_p95 > 2
+
+# Services with high error rates (>5%)
+monitor_error_rate_5m > 5
+```
+
+**Alert Status:**
+```promql
+# Currently firing alerts
+ALERTS{alertstate="firing"}
+
+# Alert history
+ALERTS_FOR_STATE
+```
 
 ## Getting Started
 
 ### Prerequisites
 
-- **Rust** (1.70+ recommended)
+- **Rust** (1.88+ recommended) 
 - **Git**
 
 ### Installation
@@ -123,14 +240,13 @@ The Grafana dashboard will show each monitored site on its own row with response
    docker run -d \
      --name sammy_monitor \
      -p 3000:3000 \
-     -p 3001:3001 \
      -v $(pwd)/settings.toml:/app/settings.toml:ro \
      ghcr.io/glhewett/sammy_monitor:latest
    ```
 
 ### Docker Compose
 
-For a complete monitoring stack with Prometheus and Grafana:
+For a complete monitoring stack with Prometheus and Alertmanager:
 
 1. **Clone and configure:**
 
@@ -138,7 +254,7 @@ For a complete monitoring stack with Prometheus and Grafana:
    git clone https://github.com/glhewett/sammy_monitor.git
    cd sammy_monitor
    cp settings.sample.toml settings.toml
-   # Edit settings.toml
+   # Edit settings.toml and alertmanager.yml
    ```
 
 2. **Start the stack:**
@@ -148,9 +264,9 @@ For a complete monitoring stack with Prometheus and Grafana:
 
 This provides:
 
-- **Sammy Monitor**: http://localhost:3000
-- **Prometheus**: http://localhost:9090
-- **Grafana**: http://localhost:3002 (admin/admin)
+- **Sammy Monitor**: http://localhost:3000/metrics
+- **Prometheus**: http://localhost:9090  
+- **Alertmanager**: http://localhost:9093
 
 ### Building Custom Images
 
@@ -178,11 +294,9 @@ Configure the container using environment variables:
 
 ### Accessing the Services
 
-Once running, Sammy Monitor provides several endpoints:
+Once running, Sammy Monitor provides:
 
-- **Web Dashboard**: http://localhost:3000/
-- **Health Check**: http://localhost:3000/health
-- **Metrics**: http://localhost:3001/metrics (Prometheus format)
+- **Metrics Endpoint**: http://localhost:3000/metrics (Prometheus format)
 
 ### Monitoring Output
 
@@ -219,6 +333,19 @@ Run with debug logging:
 ```bash
 RUST_LOG=debug cargo run -- --settings ./settings.toml
 ```
+
+## Alerting Rules
+
+The system includes comprehensive alerting rules:
+
+- **ServiceDown**: Triggers when service is down >5 minutes
+- **HighErrorRate**: Triggers when error rate >10% for >10 minutes  
+- **SlowResponse**: Triggers when P95 response time >5s for >5 minutes
+- **VerySlowResponse**: Triggers when P95 >10s for >2 minutes (critical)
+- **SLABreach**: Triggers when monthly uptime <99.5%
+- **ServiceRecovered**: Fires when service comes back online
+
+All rules include detailed descriptions and are routed to appropriate email channels based on severity.
 
 ---
 

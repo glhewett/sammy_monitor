@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use tokio::time::sleep;
 use uuid::Uuid;
 
-use crate::metrics::{MonitorMetadata, METRICS_REGISTRY};
+use crate::metrics::{METRICS_REGISTRY, MonitorMetadata};
 use crate::settings::{MonitorConfig, Settings};
 
 #[derive(Debug, Clone)]
@@ -152,7 +152,7 @@ impl Worker {
                     error_message: if success {
                         None
                     } else {
-                        Some(format!("HTTP {}", status_code))
+                        Some(format!("HTTP {status_code}"))
                     },
                     timestamp,
                 }
@@ -249,7 +249,7 @@ mod tests {
 
     fn create_test_settings(monitors: Vec<MonitorConfig>) -> Settings {
         Settings {
-            prometheus_url: "http://foo:9090",
+            prometheus_url: Some("http://foo:9090".to_string()),
             monitors,
         }
     }

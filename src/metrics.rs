@@ -37,6 +37,12 @@ pub struct MonitorMetadata {
     pub interval: u64,
 }
 
+impl Default for MetricsRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MetricsRegistry {
     pub fn new() -> Self {
         Self {
@@ -69,8 +75,8 @@ impl MetricsRegistry {
 
         // Initialize request counters for success/failure
         let mut counters = self.request_counters.lock().unwrap();
-        let success_key = format!("{}:success", id);
-        let failure_key = format!("{}:failure", id);
+        let success_key = format!("{id}:success");
+        let failure_key = format!("{id}:failure");
 
         counters.insert(
             success_key.clone(),
@@ -136,7 +142,7 @@ impl MetricsRegistry {
 
         // Increment success counter
         if let Ok(counters) = self.request_counters.lock() {
-            let success_key = format!("{}:success", monitor_id);
+            let success_key = format!("{monitor_id}:success");
             if let Some(counter) = counters.get(&success_key) {
                 counter.increment(1);
             }
@@ -178,7 +184,7 @@ impl MetricsRegistry {
 
         // Increment failure counter
         if let Ok(counters) = self.request_counters.lock() {
-            let failure_key = format!("{}:failure", monitor_id);
+            let failure_key = format!("{monitor_id}:failure");
             if let Some(counter) = counters.get(&failure_key) {
                 counter.increment(1);
             }

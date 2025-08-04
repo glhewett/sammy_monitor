@@ -1,0 +1,123 @@
+groups:
+  - name: sammy_monitor_alerts
+    rules:
+      # Service is down for more than 5 minutes
+      - alert: ServiceDown
+        expr: http_monitor_up == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: "{{ $labels.monitor_name }}"
+          alert_type: "downtime"
+        annotations:
+          summary: "Service {{ $labels.monitor_name }} is down"
+          description: |
+            Service {{ $labels.monitor_name }} ({{ $labels.monitor_url }}) has been down for more than 5 minutes.
+            Current status: {{ $value }}
+            Monitor ID: {{ $labels.monitor_id }}
+
+      # High error rate for more than 10 minutes
+      - alert: HighErrorRate
+        expr: monitor_error_rate_5m > 10
+        for: 10m
+        labels:
+          severity: warning
+          service: "{{ $labels.monitor_name }}"
+          alert_type: "error_rate"
+        annotations:
+          summary: "High error rate for {{ $labels.monitor_name }}"
+          description: |
+            Service {{ $labels.monitor_name }} has an error rate of {{ $value }}% over the last 5 minutes.
+            This is above the 10% threshold for more than 10 minutes.
+            Monitor URL: {{ $labels.monitor_url }}
+
+      # Slow response time (P95 > 5 seconds) for more than 5 minutes
+      - alert: SlowResponse
+        expr: monitor_response_time_p95 > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: "{{ $labels.monitor_name }}"
+          alert_type: "performance"
+        annotations:
+          summary: "Slow response time for {{ $labels.monitor_name }}"
+          description: |
+            Service {{ $labels.monitor_name }} has a 95th percentile response time of {{ $value }}s.
+            This is above the 5 second threshold for more than 5 minutes.
+            Monitor URL: {{ $labels.monitor_url }}
+
+      # Very slow response time (P95 > 10 seconds) - critical
+      - alert: VerySlowResponse
+        expr: monitor_response_time_p95 > 10
+        for: 2m
+        labels:
+          severity: critical
+          service: "{{ $labels.monitor_name }}"
+          alert_type: "performance"
+        annotations:
+          summary: "Very slow response time for {{ $labels.monitor_name }}"
+          description: |
+            Service {{ $labels.monitor_name }} has a 95th percentile response time of {{ $value }}s.
+            This is critically slow (>10s) for more than 2 minutes.
+            Monitor URL: {{ $labels.monitor_url }}
+
+      # SLA breach - monthly uptime below 99.5%
+      - alert: SLABreach
+        expr: monitor_sla_monthly < 99.5
+        for: 1h
+        labels:
+          severity: critical
+          service: "{{ $labels.monitor_name }}"
+          alert_type: "sla"
+        annotations:
+          summary: "SLA breach for {{ $labels.monitor_name }}"
+          description: |
+            Service {{ $labels.monitor_name }} has fallen below the 99.5% monthly SLA.
+            Current monthly uptime: {{ $value }}%
+            Monitor URL: {{ $labels.monitor_url }}
+
+      # No metrics received (monitor might be misconfigured)
+      - alert: MonitorSilence
+        expr: absent(http_monitor_up)
+        for: 15m
+        labels:
+          severity: warning
+          alert_type: "monitoring"
+        annotations:
+          summary: "Monitor metrics not received"
+          description: |
+            No metrics have been received from the sammy_monitor service for more than 15 minutes.
+            This could indicate:
+            - The monitoring service is down
+            - Configuration issues
+            - Network connectivity problems
+
+      # High request rate (potential DDoS or unusual traffic)
+      - alert: HighRequestRate
+        expr: monitor_request_rate_5m > 10
+        for: 5m
+        labels:
+          severity: info
+          service: "{{ $labels.monitor_name }}"
+          alert_type: "traffic"
+        annotations:
+          summary: "High request rate for {{ $labels.monitor_name }}"
+          description: |
+            Service {{ $labels.monitor_name }} is receiving {{ $value }} requests per second.
+            This is higher than the normal rate of 10 req/s.
+            Monitor URL: {{ $labels.monitor_url }}
+
+      # Service recovered (firing when service comes back up)
+      - alert: ServiceRecovered
+        expr: http_monitor_up == 1 and http_monitor_up offset 10m == 0
+        for: 1m
+        labels:
+          severity: info
+          service: "{{ $labels.monitor_name }}"
+          alert_type: "recovery"
+        annotations:
+          summary: "Service {{ $labels.monitor_name }} has recovered"
+          description: |
+            Service {{ $labels.monitor_name }} is now back online after being down.
+            Current status: UP
+            Monitor URL: {{ $labels.monitor_url }}
