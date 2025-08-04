@@ -57,7 +57,6 @@ impl Settings {
             .clone()
             .unwrap_or_else(|| "http://localhost:9090".to_string())
     }
-
 }
 
 impl FromStr for Settings {
@@ -129,7 +128,9 @@ interval = 60
 monitors = []
 "#;
 
-        let settings: Settings = toml_content.parse().expect("Failed to parse empty monitors");
+        let settings: Settings = toml_content
+            .parse()
+            .expect("Failed to parse empty monitors");
         assert_eq!(settings.monitors.len(), 0);
     }
 

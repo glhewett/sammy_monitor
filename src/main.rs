@@ -1,5 +1,5 @@
 use axum::{routing::get, Router};
-use clap::{Command, arg};
+use clap::{arg, Command};
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
 use sammy_monitor::metrics::init_metrics;
 use sammy_monitor::settings::Settings;
@@ -34,7 +34,10 @@ async fn start_server() {
     let app = create_app();
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    tracing::info!("Metrics server listening on {}", listener.local_addr().unwrap());
+    tracing::info!(
+        "Metrics server listening on {}",
+        listener.local_addr().unwrap()
+    );
     axum::serve(listener, app).await.unwrap();
 }
 
@@ -76,10 +79,7 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let (_server, _worker) = tokio::join!(
-        start_server(),
-        start_worker(settings)
-    );
+    let (_server, _worker) = tokio::join!(start_server(), start_worker(settings));
 
     Ok(())
 }

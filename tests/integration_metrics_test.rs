@@ -2,7 +2,7 @@ use std::time::Duration;
 use tokio::time;
 use uuid::Uuid;
 
-use sammy_monitor::metrics::{METRICS_REGISTRY, MonitorMetadata, init_metrics};
+use sammy_monitor::metrics::{init_metrics, MonitorMetadata, METRICS_REGISTRY};
 
 /// Single comprehensive integration test for Prometheus metrics
 /// This test validates that metrics are correctly generated, formatted, and contain accurate values
