@@ -48,8 +48,9 @@ receivers:
     email_configs:
       - to: 'ops-team@your-company.com'  # Change to your ops team email
         from: 'alerts@your-company.com'
-        subject: 'CRITICAL Alert: {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
-        body: |
+        headers:
+          Subject: '🚨 CRITICAL: {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+        text: |
           Critical Alert Details:
           {{ range .Alerts }}
           Alert: {{ .Annotations.summary }}
@@ -62,8 +63,9 @@ receivers:
     email_configs:
       - to: 'dev-team@your-company.com'  # Change to your dev team email
         from: 'alerts@your-company.com'
-        subject: 'Warning Alert: {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
-        body: |
+        headers:
+          Subject: '⚠️ WARNING: {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+        text: |
           Warning Alert Details:
           {{ range .Alerts }}
           Alert: {{ .Annotations.summary }}
@@ -76,8 +78,9 @@ receivers:
     email_configs:
       - to: 'monitoring@your-company.com'  # Change to your monitoring team email
         from: 'alerts@your-company.com'
-        subject: 'Info Alert: {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
-        body: |
+        headers:
+          Subject: 'ℹ️ INFO: {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+        text: |
           Info Alert Details:
           {{ range .Alerts }}
           Alert: {{ .Annotations.summary }}
