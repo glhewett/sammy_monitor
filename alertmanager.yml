@@ -48,42 +48,42 @@ receivers:
     email_configs:
       - to: 'ops-team@your-company.com'  # Change to your ops team email
         from: 'alerts@your-company.com'
-        subject: '🚨 CRITICAL: {{ .GroupLabels.service }} - {{ .GroupLabels.alertname }}'
-        html: |
-          <h2>🚨 Critical Alert</h2>
-          <p><strong>Service:</strong> {{ .GroupLabels.service }}</p>
-          <p><strong>Alert:</strong> {{ .GroupLabels.alertname }}</p>
-          <p><strong>Severity:</strong> {{ .CommonLabels.severity }}</p>
-          <p><strong>Description:</strong> {{ .CommonAnnotations.description }}</p>
-          <p><strong>Time:</strong> {{ .Alerts.Firing | len }} alerts firing</p>
+        subject: 'CRITICAL Alert: {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+        body: |
+          Critical Alert Details:
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Status: {{ .Status }}
+          {{ end }}
 
   # Warning alerts - standard notification
   - name: 'warning-email'
     email_configs:
       - to: 'dev-team@your-company.com'  # Change to your dev team email
         from: 'alerts@your-company.com'
-        subject: '⚠️  WARNING: {{ .GroupLabels.service }} - {{ .GroupLabels.alertname }}'
-        html: |
-          <h2>⚠️ Warning Alert</h2>
-          <p><strong>Service:</strong> {{ .GroupLabels.service }}</p>
-          <p><strong>Alert:</strong> {{ .GroupLabels.alertname }}</p>
-          <p><strong>Severity:</strong> {{ .CommonLabels.severity }}</p>
-          <p><strong>Description:</strong> {{ .CommonAnnotations.description }}</p>
-          <p><strong>Time:</strong> {{ .Alerts.Firing | len }} alerts firing</p>
+        subject: 'Warning Alert: {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+        body: |
+          Warning Alert Details:
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Status: {{ .Status }}
+          {{ end }}
 
   # Info alerts - low priority notification
   - name: 'info-email'
     email_configs:
       - to: 'monitoring@your-company.com'  # Change to your monitoring team email
         from: 'alerts@your-company.com'
-        subject: 'ℹ️  INFO: {{ .GroupLabels.service }} - {{ .GroupLabels.alertname }}'
-        html: |
-          <h2>ℹ️ Info Alert</h2>
-          <p><strong>Service:</strong> {{ .GroupLabels.service }}</p>
-          <p><strong>Alert:</strong> {{ .GroupLabels.alertname }}</p>
-          <p><strong>Severity:</strong> {{ .CommonLabels.severity }}</p>
-          <p><strong>Description:</strong> {{ .CommonAnnotations.description }}</p>
-          <p><strong>Time:</strong> {{ .Alerts.Firing | len }} alerts firing</p>
+        subject: 'Info Alert: {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+        body: |
+          Info Alert Details:
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Status: {{ .Status }}
+          {{ end }}
 
 # Inhibition rules (suppress certain alerts when others are firing)
 inhibit_rules:

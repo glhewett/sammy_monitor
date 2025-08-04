@@ -37,7 +37,6 @@ services:
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--storage.tsdb.retention.time=200h'
       - '--web.enable-lifecycle'
-      - '--alertmanager.url=http://alertmanager:9093'
     restart: unless-stopped
     networks:
       - monitoring
