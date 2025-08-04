@@ -2,9 +2,8 @@ version: '3.8'
 
 services:
   sammy_monitor:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/glhewett/sammy_monitor:latest
+    container_name: sammy-monitor
     ports:
       - "3000:3000"  # Consolidated server port
     volumes:
