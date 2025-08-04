@@ -69,7 +69,7 @@ async fn test_metrics_integration() {
     let output = handle.render();
 
     println!("=== COMPREHENSIVE METRICS INTEGRATION TEST ===");
-    println!("{}", output);
+    println!("{output}");
 
     // === BASIC PRESENCE TESTS ===
 
@@ -102,8 +102,8 @@ async fn test_metrics_integration() {
     );
 
     // Test 3: Check monitor identification
-    assert!(output.contains(&format!("monitor_id=\"{}\"", monitor1_id)));
-    assert!(output.contains(&format!("monitor_id=\"{}\"", monitor2_id)));
+    assert!(output.contains(&format!("monitor_id=\"{monitor1_id}\"")));
+    assert!(output.contains(&format!("monitor_id=\"{monitor2_id}\"")));
     assert!(output.contains("monitor_name=\"Integration Test Site 1\""));
     assert!(output.contains("monitor_name=\"Integration Test Site 2\""));
 
@@ -223,9 +223,7 @@ async fn test_metrics_integration() {
     if let Some(sum) = histogram_sum {
         assert!(
             (sum - expected_sum_seconds).abs() < 0.001,
-            "Monitor 1 histogram sum should be {} but got {}",
-            expected_sum_seconds,
-            sum
+            "Monitor 1 histogram sum should be {expected_sum_seconds} but got {sum}"
         );
     } else {
         panic!("Monitor 1 histogram sum not found");
@@ -276,9 +274,7 @@ async fn test_metrics_integration() {
 
         assert!(
             current_time - timestamp < 10.0,
-            "Monitor 1 last success timestamp should be recent: {} vs {}",
-            timestamp,
-            current_time
+            "Monitor 1 last success timestamp should be recent: {timestamp} vs {current_time}"
         );
     } else {
         panic!("Monitor 1 last success timestamp not found");
@@ -330,7 +326,7 @@ fn extract_metric_value(output: &str, metric_name: &str, labels: &[(&str, &str)]
             // Check if all required labels are present
             let all_labels_match = labels
                 .iter()
-                .all(|(key, value)| line.contains(&format!("{}=\"{}\"", key, value)));
+                .all(|(key, value)| line.contains(&format!("{key}=\"{value}\"")));
 
             if all_labels_match {
                 if let Some(value_str) = line.split_whitespace().last() {
@@ -354,10 +350,7 @@ fn validate_histogram_bucket(output: &str, monitor_id: &Uuid, le_value: &str, ex
     assert_eq!(
         bucket_count,
         Some(expected_count),
-        "Bucket le=\"{}\" should have {} observations but got {:?}",
-        le_value,
-        expected_count,
-        bucket_count
+        "Bucket le=\"{le_value}\" should have {expected_count} observations but got {bucket_count:?}"
     );
 }
 
