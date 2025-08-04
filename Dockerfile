@@ -1,5 +1,5 @@
 # Multi-stage build for smaller image size
-FROM rust:1.82-alpine as builder
+FROM rust:1.88-alpine as builder
 
 WORKDIR /app
 
@@ -18,7 +18,6 @@ COPY Cargo.toml Cargo.lock ./
 
 # Copy source code
 COPY src ./src
-COPY templates ./templates
 
 # Build the application with static linking
 RUN cargo build --release --target x86_64-unknown-linux-musl
@@ -39,24 +38,18 @@ WORKDIR /app
 # Copy the statically linked binary
 COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/sammy_monitor /usr/local/bin/sammy_monitor
 
-# Copy templates
-COPY --from=builder /app/templates ./templates
-
-# Copy sample settings file
-COPY settings.sample.toml ./settings.sample.toml
-
 # Change ownership to sammy user
 RUN chown -R sammy:sammy /app
 
 # Switch to non-root user
 USER sammy
 
-# Expose ports
-EXPOSE 3000 3001
+# Expose only the consolidated port
+EXPOSE 3000
 
-# Health check
+# Health check using metrics endpoint
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3000/health || exit 1
+    CMD curl -f http://localhost:3000/metrics || exit 1
 
-# Default command
+# Default command - settings.toml should be mounted as a volume
 CMD ["sammy_monitor", "--settings", "/app/settings.toml"]

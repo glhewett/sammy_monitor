@@ -37,6 +37,7 @@ cp settings.sample.toml settings.toml
 # (Use any text editor to add your URLs, intervals, etc.)
 
 # 5. Start the complete monitoring stack
+# The settings.toml file will be automatically mounted into the container
 docker-compose up -d
 
 # 6. Access your services:
@@ -244,6 +245,8 @@ ALERTS_FOR_STATE
      ghcr.io/glhewett/sammy_monitor:latest
    ```
 
+   **Note**: The `settings.toml` file must be mounted as a volume. The container does not include any settings file by default.
+
 ### Docker Compose
 
 For a complete monitoring stack with Prometheus and Alertmanager:
@@ -259,6 +262,7 @@ For a complete monitoring stack with Prometheus and Alertmanager:
 
 2. **Start the stack:**
    ```bash
+   # The settings.toml file is automatically mounted as a volume
    docker-compose up -d
    ```
 
