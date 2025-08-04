@@ -6,9 +6,6 @@ global:
   smtp_auth_password: 'your-password'  # Change to your SMTP password
   smtp_require_tls: true
 
-# Email templates directory
-templates:
-  - '/etc/alertmanager/templates/*.tmpl'
 
 # Routing rules for alerts
 route:
@@ -52,10 +49,13 @@ receivers:
       - to: 'ops-team@your-company.com'  # Change to your ops team email
         from: 'alerts@your-company.com'
         subject: '🚨 CRITICAL: {{ .GroupLabels.service }} - {{ .GroupLabels.alertname }}'
-        body: |
-          {{ template "email.critical.html" . }}
         html: |
-          {{ template "email.critical.html" . }}
+          <h2>🚨 Critical Alert</h2>
+          <p><strong>Service:</strong> {{ .GroupLabels.service }}</p>
+          <p><strong>Alert:</strong> {{ .GroupLabels.alertname }}</p>
+          <p><strong>Severity:</strong> {{ .CommonLabels.severity }}</p>
+          <p><strong>Description:</strong> {{ .CommonAnnotations.description }}</p>
+          <p><strong>Time:</strong> {{ .Alerts.Firing | len }} alerts firing</p>
 
   # Warning alerts - standard notification
   - name: 'warning-email'
@@ -63,10 +63,13 @@ receivers:
       - to: 'dev-team@your-company.com'  # Change to your dev team email
         from: 'alerts@your-company.com'
         subject: '⚠️  WARNING: {{ .GroupLabels.service }} - {{ .GroupLabels.alertname }}'
-        body: |
-          {{ template "email.warning.html" . }}
         html: |
-          {{ template "email.warning.html" . }}
+          <h2>⚠️ Warning Alert</h2>
+          <p><strong>Service:</strong> {{ .GroupLabels.service }}</p>
+          <p><strong>Alert:</strong> {{ .GroupLabels.alertname }}</p>
+          <p><strong>Severity:</strong> {{ .CommonLabels.severity }}</p>
+          <p><strong>Description:</strong> {{ .CommonAnnotations.description }}</p>
+          <p><strong>Time:</strong> {{ .Alerts.Firing | len }} alerts firing</p>
 
   # Info alerts - low priority notification
   - name: 'info-email'
@@ -74,10 +77,13 @@ receivers:
       - to: 'monitoring@your-company.com'  # Change to your monitoring team email
         from: 'alerts@your-company.com'
         subject: 'ℹ️  INFO: {{ .GroupLabels.service }} - {{ .GroupLabels.alertname }}'
-        body: |
-          {{ template "email.info.html" . }}
         html: |
-          {{ template "email.info.html" . }}
+          <h2>ℹ️ Info Alert</h2>
+          <p><strong>Service:</strong> {{ .GroupLabels.service }}</p>
+          <p><strong>Alert:</strong> {{ .GroupLabels.alertname }}</p>
+          <p><strong>Severity:</strong> {{ .CommonLabels.severity }}</p>
+          <p><strong>Description:</strong> {{ .CommonAnnotations.description }}</p>
+          <p><strong>Time:</strong> {{ .Alerts.Firing | len }} alerts firing</p>
 
 # Inhibition rules (suppress certain alerts when others are firing)
 inhibit_rules:
