@@ -1,17 +1,26 @@
-use log::{error, info};
+use anyhow::Result;
+use lettre::{
+    message::header::ContentType, transport::smtp::authentication::Credentials,
+    AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
+};
+use log::{error, info, warn};
 use reqwest::Client;
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
 use uuid::Uuid;
 
-use crate::metrics::{MonitorMetadata, METRICS_REGISTRY};
-use crate::settings::{MonitorConfig, Settings};
+use crate::db::{CheckRecord, Db};
+use crate::settings::{MonitorConfig, Settings, SmtpConfig};
+
+// smtp_config is kept separate from Settings because it is sourced from env vars,
+// not from settings.toml.
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct MonitorResult {
-    pub monitor_id: uuid::Uuid,
+    pub monitor_id: Uuid,
     pub monitor_name: String,
     pub url: String,
     pub success: bool,
@@ -21,14 +30,26 @@ pub struct MonitorResult {
     pub timestamp: chrono::DateTime<chrono::Utc>,
 }
 
+#[derive(Debug, Clone)]
+enum MonitorAlertState {
+    Unknown,
+    Up,
+    FailingNoAlert { consecutive_failures: u32 },
+    Down,
+}
+
 pub struct Worker {
     client: Client,
     settings: Settings,
     last_run_times: HashMap<Uuid, Instant>,
+    db: Arc<Mutex<Db>>,
+    alert_states: HashMap<Uuid, MonitorAlertState>,
+    smtp_config: Option<SmtpConfig>,
+    mailer: Option<AsyncSmtpTransport<Tokio1Executor>>,
 }
 
 impl Worker {
-    pub fn new(settings: Settings) -> Self {
+    pub fn new(settings: Settings, db: Arc<Mutex<Db>>, smtp_config: Option<SmtpConfig>) -> Self {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
             .user_agent(format!(
@@ -39,20 +60,29 @@ impl Worker {
             .build()
             .expect("Failed to create HTTP client");
 
-        // Register all monitors with metrics registry
-        for monitor in &settings.monitors {
-            let metadata = MonitorMetadata {
-                name: monitor.name.clone(),
-                url: monitor.url.clone(),
-                interval: monitor.interval,
-            };
-            METRICS_REGISTRY.register_monitor(monitor.id, metadata);
-        }
+        let mailer = smtp_config.as_ref().and_then(|smtp| {
+            build_mailer(smtp)
+                .map_err(|e| {
+                    warn!("Failed to build SMTP mailer: {e}. Email notifications disabled.");
+                    e
+                })
+                .ok()
+        });
+
+        let alert_states = settings
+            .monitors
+            .iter()
+            .map(|m| (m.id, MonitorAlertState::Unknown))
+            .collect();
 
         Self {
             client,
             settings,
             last_run_times: HashMap::new(),
+            db,
+            alert_states,
+            smtp_config,
+            mailer,
         }
     }
 
@@ -66,12 +96,11 @@ impl Worker {
             let loop_start = Instant::now();
             self.check_due_monitors().await;
 
-            // Sleep for 1 minute minus the runtime
             let runtime = loop_start.elapsed();
             let sleep_duration = if runtime < Duration::from_secs(60) {
                 Duration::from_secs(60) - runtime
             } else {
-                Duration::from_millis(100) // Minimum sleep to prevent busy loop
+                Duration::from_millis(100)
             };
 
             info!(
@@ -95,14 +124,14 @@ impl Worker {
             let should_run = match self.last_run_times.get(&monitor.id) {
                 Some(last_run) => {
                     let time_since_last = now.duration_since(*last_run);
-                    let interval_duration = Duration::from_secs(monitor.interval * 60); // Convert minutes to seconds
+                    let interval_duration = Duration::from_secs(monitor.interval * 60);
                     time_since_last >= interval_duration
                 }
-                None => true, // First run
+                None => true,
             };
 
             if should_run {
-                monitors_to_check.push(monitor);
+                monitors_to_check.push(monitor.clone());
                 self.last_run_times.insert(monitor.id, now);
             }
         }
@@ -118,9 +147,10 @@ impl Worker {
         );
 
         for monitor in monitors_to_check {
-            let result = self.check_monitor(monitor).await;
+            let result = self.check_monitor(&monitor).await;
             self.log_result(&result);
-            self.record_metrics(&result);
+            self.persist_result(&result).await;
+            self.handle_alert_transition(&monitor, &result).await;
         }
     }
 
@@ -197,37 +227,127 @@ impl Worker {
         }
     }
 
-    fn record_metrics(&self, result: &MonitorResult) {
-        if result.success {
-            METRICS_REGISTRY.record_success(result.monitor_id, result.response_time_ms);
-        } else {
-            // Determine error type from the error message
-            let error_type = if result
-                .error_message
-                .as_ref()
-                .map(|msg| msg.contains("timeout"))
-                .unwrap_or(false)
-            {
-                "timeout"
-            } else if result.status_code.is_some() {
-                "http_error"
-            } else if result
-                .error_message
-                .as_ref()
-                .map(|msg| msg.contains("dns"))
-                .unwrap_or(false)
-            {
-                "dns_error"
-            } else {
-                "connection_error"
-            };
+    async fn persist_result(&self, result: &MonitorResult) {
+        let record = CheckRecord {
+            monitor_id: result.monitor_id.to_string(),
+            ts: result.timestamp.to_rfc3339(),
+            success: result.success,
+            response_time_ms: result.response_time_ms,
+            status_code: result.status_code,
+            error_message: result.error_message.clone(),
+        };
+        let db = self.db.clone();
+        let outcome = tokio::task::spawn_blocking(move || db.lock().unwrap().insert_check(&record))
+            .await
+            .unwrap_or_else(|e| Err(anyhow::anyhow!("spawn_blocking panicked: {e}")));
+        if let Err(e) = outcome {
+            error!("Failed to persist check result: {e}");
+        }
+    }
 
-            METRICS_REGISTRY.record_failure(
-                result.monitor_id,
-                result.response_time_ms,
-                error_type,
-                result.status_code,
-            );
+    async fn handle_alert_transition(&mut self, monitor: &MonitorConfig, result: &MonitorResult) {
+        let threshold = self.settings.down_alert_threshold;
+
+        let current_state = self
+            .alert_states
+            .get(&monitor.id)
+            .cloned()
+            .unwrap_or(MonitorAlertState::Unknown);
+
+        let new_state = if result.success {
+            if matches!(current_state, MonitorAlertState::Down) {
+                self.send_recovery_alert(monitor).await;
+            }
+            MonitorAlertState::Up
+        } else {
+            match current_state {
+                MonitorAlertState::Down => MonitorAlertState::Down,
+                MonitorAlertState::FailingNoAlert { consecutive_failures } => {
+                    let new_count = consecutive_failures + 1;
+                    if new_count >= threshold {
+                        self.send_down_alert(monitor, result).await;
+                        MonitorAlertState::Down
+                    } else {
+                        MonitorAlertState::FailingNoAlert {
+                            consecutive_failures: new_count,
+                        }
+                    }
+                }
+                _ => MonitorAlertState::FailingNoAlert {
+                    consecutive_failures: 1,
+                },
+            }
+        };
+
+        self.alert_states.insert(monitor.id, new_state);
+    }
+
+    async fn send_down_alert(&self, monitor: &MonitorConfig, result: &MonitorResult) {
+        let (Some(mailer), Some(smtp)) = (&self.mailer, &self.smtp_config) else {
+            return;
+        };
+        let subject = format!("ALERT: {} is DOWN", monitor.name);
+        let body = format!(
+            "Monitor '{}' ({}) is down.\n\nLast error: {}\nResponse time: {}ms\nTime: {}",
+            monitor.name,
+            monitor.url,
+            result.error_message.as_deref().unwrap_or("unknown"),
+            result.response_time_ms,
+            result.timestamp.to_rfc3339(),
+        );
+        send_emails(mailer, smtp, &subject, &body).await;
+    }
+
+    async fn send_recovery_alert(&self, monitor: &MonitorConfig) {
+        let (Some(mailer), Some(smtp)) = (&self.mailer, &self.smtp_config) else {
+            return;
+        };
+        let subject = format!("RECOVERED: {} is back UP", monitor.name);
+        let body = format!(
+            "Monitor '{}' ({}) has recovered.\n\nTime: {}",
+            monitor.name,
+            monitor.url,
+            chrono::Utc::now().to_rfc3339(),
+        );
+        send_emails(mailer, smtp, &subject, &body).await;
+    }
+}
+
+fn build_mailer(smtp: &SmtpConfig) -> Result<AsyncSmtpTransport<Tokio1Executor>> {
+    let creds = Credentials::new(smtp.smtp_username.clone(), smtp.smtp_password.clone());
+    let builder = if smtp.smtp_use_tls {
+        AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&smtp.smtp_host)?
+    } else {
+        AsyncSmtpTransport::<Tokio1Executor>::relay(&smtp.smtp_host)?
+    };
+    Ok(builder.port(smtp.smtp_port).credentials(creds).build())
+}
+
+fn build_email(from: &str, to: &str, subject: &str, body: &str) -> Result<Message> {
+    Ok(Message::builder()
+        .from(from.parse()?)
+        .to(to.parse()?)
+        .subject(subject)
+        .header(ContentType::TEXT_PLAIN)
+        .body(body.to_string())?)
+}
+
+async fn send_emails(
+    mailer: &AsyncSmtpTransport<Tokio1Executor>,
+    smtp: &SmtpConfig,
+    subject: &str,
+    body: &str,
+) {
+    for to in &smtp.to_addresses {
+        match build_email(&smtp.from_address, to, subject, body) {
+            Ok(email) => {
+                if let Err(e) = mailer.send(email).await {
+                    warn!("Failed to send email to {to}: {e}");
+                } else {
+                    info!("Email sent to {to}: {subject}");
+                }
+            }
+            Err(e) => warn!("Failed to build email to {to}: {e}"),
         }
     }
 }
@@ -235,7 +355,14 @@ impl Worker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use uuid::Uuid;
+    use crate::db::Db;
+    use tempfile::NamedTempFile;
+
+    fn make_test_db() -> (Arc<Mutex<Db>>, NamedTempFile) {
+        let file = NamedTempFile::new().unwrap();
+        let db = Db::open(file.path().to_str().unwrap()).unwrap();
+        (Arc::new(Mutex::new(db)), file)
+    }
 
     fn create_test_monitor(name: &str, url: &str, enabled: bool) -> MonitorConfig {
         MonitorConfig {
@@ -249,15 +376,17 @@ mod tests {
 
     fn create_test_settings(monitors: Vec<MonitorConfig>) -> Settings {
         Settings {
-            prometheus_url: Some("http://foo:9090".to_string()),
             monitors,
+            db_path: "./test.db".to_string(),
+            down_alert_threshold: 5,
         }
     }
 
     #[test]
     fn test_worker_new() {
         let settings = create_test_settings(vec![]);
-        let worker = Worker::new(settings);
+        let (db, _file) = make_test_db();
+        let worker = Worker::new(settings, db, None);
 
         assert_eq!(worker.settings.monitors.len(), 0);
         assert_eq!(worker.last_run_times.len(), 0);
@@ -310,19 +439,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_monitor_success() {
-        // This test would require a mock HTTP server in a real implementation
-        // For now, we just test the structure
         let monitor = create_test_monitor("Test", "https://httpbin.org/status/200", true);
         let settings = create_test_settings(vec![monitor.clone()]);
-        let worker = Worker::new(settings);
+        let (db, _file) = make_test_db();
+        let worker = Worker::new(settings, db, None);
 
         let result = worker.check_monitor(&monitor).await;
 
         assert_eq!(result.monitor_id, monitor.id);
         assert_eq!(result.monitor_name, monitor.name);
         assert_eq!(result.url, monitor.url);
-        // Note: This test will actually make an HTTP request
-        // In production, you'd want to mock the HTTP client
     }
 
     #[test]
@@ -332,14 +458,14 @@ mod tests {
                 id: Uuid::new_v4(),
                 name: "1min interval".to_string(),
                 url: "https://example1.com".to_string(),
-                interval: 1, // 1 minute
+                interval: 1,
                 enabled: true,
             },
             MonitorConfig {
                 id: Uuid::new_v4(),
                 name: "2min interval".to_string(),
                 url: "https://example2.com".to_string(),
-                interval: 2, // 2 minutes
+                interval: 2,
                 enabled: true,
             },
             MonitorConfig {
@@ -352,12 +478,11 @@ mod tests {
         ];
 
         let settings = create_test_settings(monitors.clone());
-        let mut worker = Worker::new(settings);
+        let (db, _file) = make_test_db();
+        let mut worker = Worker::new(settings, db, None);
 
-        // Initially, no monitors have been run
         assert_eq!(worker.last_run_times.len(), 0);
 
-        // Simulate a first run - all enabled monitors should be due
         let now = std::time::Instant::now();
         for monitor in &monitors {
             if monitor.enabled {
@@ -367,7 +492,7 @@ mod tests {
                         let interval_duration = Duration::from_secs(monitor.interval * 60);
                         time_since_last >= interval_duration
                     }
-                    None => true, // First run
+                    None => true,
                 };
                 assert!(
                     should_run,
@@ -377,11 +502,9 @@ mod tests {
             }
         }
 
-        // Mark monitors as run
         worker.last_run_times.insert(monitors[0].id, now);
         worker.last_run_times.insert(monitors[1].id, now);
 
-        // Immediately after running, no monitors should be due
         for monitor in &monitors {
             if monitor.enabled {
                 let should_run = match worker.last_run_times.get(&monitor.id) {
@@ -399,5 +522,58 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn test_alert_state_machine_down_threshold() {
+        let monitor = create_test_monitor("Test", "https://example.com", true);
+        let settings = create_test_settings(vec![monitor.clone()]);
+        let (db, _file) = make_test_db();
+        let mut worker = Worker::new(settings, db, None);
+
+        // Initial state is Unknown — first failure goes to FailingNoAlert{1}
+        let state = worker
+            .alert_states
+            .get(&monitor.id)
+            .cloned()
+            .unwrap_or(MonitorAlertState::Unknown);
+        assert!(matches!(state, MonitorAlertState::Unknown));
+
+        // Simulate 4 failures (threshold=5, not yet Down)
+        for i in 1..5u32 {
+            let new_state = match worker.alert_states[&monitor.id].clone() {
+                MonitorAlertState::FailingNoAlert { consecutive_failures } => {
+                    MonitorAlertState::FailingNoAlert {
+                        consecutive_failures: consecutive_failures + 1,
+                    }
+                }
+                _ => MonitorAlertState::FailingNoAlert {
+                    consecutive_failures: 1,
+                },
+            };
+            worker.alert_states.insert(monitor.id, new_state);
+            let state = &worker.alert_states[&monitor.id];
+            assert!(
+                matches!(state, MonitorAlertState::FailingNoAlert { consecutive_failures } if *consecutive_failures == i),
+                "Expected FailingNoAlert with count {i}"
+            );
+        }
+
+        // 5th failure should reach threshold
+        let new_state = match worker.alert_states[&monitor.id].clone() {
+            MonitorAlertState::FailingNoAlert { consecutive_failures } => {
+                let new_count = consecutive_failures + 1;
+                if new_count >= 5 {
+                    MonitorAlertState::Down
+                } else {
+                    MonitorAlertState::FailingNoAlert {
+                        consecutive_failures: new_count,
+                    }
+                }
+            }
+            s => s,
+        };
+        worker.alert_states.insert(monitor.id, new_state);
+        assert!(matches!(worker.alert_states[&monitor.id], MonitorAlertState::Down));
     }
 }

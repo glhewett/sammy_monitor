@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use std::env;
 use std::fs;
 use std::io::{Error, ErrorKind};
 use std::path::PathBuf;
@@ -10,14 +11,109 @@ pub struct MonitorConfig {
     pub id: Uuid,
     pub name: String,
     pub url: String,
-    pub interval: u64, // in seconds
+    pub interval: u64,
     pub enabled: bool,
+}
+
+/// SMTP configuration loaded from environment variables.
+///
+/// Expected env vars:
+///   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM, SMTP_TO
+///
+/// Optional:
+///   SMTP_TLS  (true/false, defaults to true)
+///   SMTP_TO   (comma-separated for multiple recipients)
+#[derive(Debug, Clone)]
+pub struct SmtpConfig {
+    pub smtp_host: String,
+    pub smtp_port: u16,
+    pub smtp_username: String,
+    pub smtp_password: String,
+    pub smtp_use_tls: bool,
+    pub from_address: String,
+    pub to_addresses: Vec<String>,
+}
+
+impl SmtpConfig {
+    /// Load SMTP config from environment variables. Returns `None` if any
+    /// required variable is missing, logging a warning for each gap.
+    pub fn from_env() -> Option<Self> {
+        let mut ok = true;
+
+        macro_rules! require {
+            ($key:expr) => {
+                match env::var($key) {
+                    Ok(v) => v,
+                    Err(_) => {
+                        log::warn!("Missing required env var: {}", $key);
+                        ok = false;
+                        String::new()
+                    }
+                }
+            };
+        }
+
+        let smtp_host = require!("SMTP_HOST");
+        let smtp_port_str = require!("SMTP_PORT");
+        let smtp_username = require!("SMTP_USER");
+        let smtp_password = require!("SMTP_PASS");
+        let from_address = require!("SMTP_FROM");
+        let smtp_to = require!("SMTP_TO");
+
+        if !ok {
+            return None;
+        }
+
+        let smtp_port: u16 = match smtp_port_str.parse() {
+            Ok(p) => p,
+            Err(_) => {
+                log::warn!("SMTP_PORT is not a valid port number: {smtp_port_str}");
+                return None;
+            }
+        };
+
+        let smtp_use_tls = env::var("SMTP_TLS")
+            .map(|v| v.to_lowercase() != "false")
+            .unwrap_or(true);
+
+        let to_addresses = smtp_to
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>();
+
+        if to_addresses.is_empty() {
+            log::warn!("SMTP_TO is empty — no recipients configured");
+            return None;
+        }
+
+        Some(Self {
+            smtp_host,
+            smtp_port,
+            smtp_username,
+            smtp_password,
+            smtp_use_tls,
+            from_address,
+            to_addresses,
+        })
+    }
+}
+
+fn default_db_path() -> String {
+    "./sammy_monitor.db".to_string()
+}
+
+fn default_down_alert_threshold() -> u32 {
+    5
 }
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Settings {
     pub monitors: Vec<MonitorConfig>,
-    pub prometheus_url: Option<String>,
+    #[serde(default = "default_db_path")]
+    pub db_path: String,
+    #[serde(default = "default_down_alert_threshold")]
+    pub down_alert_threshold: u32,
 }
 
 impl Settings {
@@ -52,11 +148,6 @@ impl Settings {
         Ok(settings)
     }
 
-    pub fn get_prometheus_url(&self) -> String {
-        self.prometheus_url
-            .clone()
-            .unwrap_or_else(|| "http://localhost:9090".to_string())
-    }
 }
 
 impl FromStr for Settings {
@@ -344,5 +435,55 @@ enabled = true
         // Re-enable the monitor
         monitor.enabled = true;
         assert!(monitor.enabled);
+    }
+
+    #[test]
+    fn test_db_path_default() {
+        let settings: Settings = "monitors = []".parse().expect("Failed to parse TOML");
+        assert_eq!(settings.db_path, "./sammy_monitor.db");
+    }
+
+    #[test]
+    fn test_db_path_custom() {
+        let settings: Settings = "db_path = \"/data/monitor.db\"\nmonitors = []"
+            .parse()
+            .expect("Failed to parse TOML");
+        assert_eq!(settings.db_path, "/data/monitor.db");
+    }
+
+    #[test]
+    fn test_down_alert_threshold_default() {
+        let settings: Settings = "monitors = []".parse().expect("Failed to parse TOML");
+        assert_eq!(settings.down_alert_threshold, 5);
+    }
+
+    #[test]
+    fn test_down_alert_threshold_custom() {
+        let settings: Settings = "monitors = []\ndown_alert_threshold = 10"
+            .parse()
+            .expect("Failed to parse TOML");
+        assert_eq!(settings.down_alert_threshold, 10);
+    }
+
+    #[test]
+    fn test_smtp_config_from_env() {
+        std::env::set_var("SMTP_HOST", "smtp.test.com");
+        std::env::set_var("SMTP_PORT", "587");
+        std::env::set_var("SMTP_USER", "user@test.com");
+        std::env::set_var("SMTP_PASS", "secret");
+        std::env::set_var("SMTP_FROM", "from@test.com");
+        std::env::set_var("SMTP_TO", "ops@test.com,dev@test.com");
+
+        let config = SmtpConfig::from_env().expect("Should produce config");
+        assert_eq!(config.smtp_host, "smtp.test.com");
+        assert_eq!(config.smtp_port, 587);
+        assert_eq!(config.smtp_username, "user@test.com");
+        assert_eq!(config.from_address, "from@test.com");
+        assert_eq!(config.to_addresses, vec!["ops@test.com", "dev@test.com"]);
+        assert!(config.smtp_use_tls);
+
+        for key in &["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "SMTP_FROM", "SMTP_TO"] {
+            std::env::remove_var(key);
+        }
     }
 }

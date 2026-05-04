@@ -50,9 +50,8 @@ docker-build:
 docker-run: docker-build
 	docker run -d \
 		--name sammy_monitor \
-		-p 3000:3000 \
-		-p 3001:3001 \
 		-v $(PWD)/settings.toml:/app/settings.toml:ro \
+		-v sammy_db:/app/data \
 		sammy_monitor:latest
 
 compose-up:

@@ -1,6 +1,26 @@
 # Sammy Monitor Configuration Sample
 # Copy this file to settings.toml and customize for your environment
-prometheus_url = "http://web.local:9090"
+
+# Path to the SQLite database file (relative to working directory or absolute)
+db_path = "./sammy_monitor.db"
+
+# Number of consecutive failures before a DOWN alert is sent.
+# Example: with interval = 1 (minute) and threshold = 5, alerts after ~5 minutes down.
+down_alert_threshold = 5
+
+# SMTP credentials are loaded from environment variables, not this file.
+# Copy .env to .env.local and set your real values there (.env.local is gitignored).
+#
+# Required:
+#   SMTP_HOST   — SMTP server hostname
+#   SMTP_PORT   — SMTP port (587 for STARTTLS, 465 for implicit TLS)
+#   SMTP_USER   — SMTP login username
+#   SMTP_PASS   — SMTP password
+#   SMTP_FROM   — Sender address
+#   SMTP_TO     — Recipient address(es), comma-separated
+#
+# Optional:
+#   SMTP_TLS    — true (default) or false
 
 [[monitors]]
 # Unique identifier for this monitor (generate new UUIDs for your monitors)
