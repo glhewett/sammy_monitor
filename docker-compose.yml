@@ -4,64 +4,17 @@ services:
   sammy_monitor:
     image: ghcr.io/glhewett/sammy_monitor:latest
     container_name: sammy-monitor
-    ports:
-      - "3000:3000"  # Consolidated server port
     volumes:
       - ./settings.toml:/app/settings.toml:ro
+      - sammy_db:/app/data
     environment:
-      - RUST_LOG=debug
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/metrics || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    networks:
-      - monitoring
-
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: sammy-prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./prometheus_rules.yml:/etc/prometheus/rules/prometheus_rules.yml:ro
-      - ./alert_rules.yml:/etc/prometheus/rules/alert_rules.yml:ro
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-      - '--storage.tsdb.retention.time=200h'
-      - '--web.enable-lifecycle'
-    restart: unless-stopped
-    networks:
-      - monitoring
-    depends_on:
-      - sammy_monitor
-
-  alertmanager:
-    image: prom/alertmanager:latest
-    container_name: sammy-alertmanager
-    ports:
-      - "9093:9093"
-    volumes:
-      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
-      - alertmanager_data:/alertmanager
-    command:
-      - '--config.file=/etc/alertmanager/alertmanager.yml'
-      - '--storage.path=/alertmanager'
-      - '--web.external-url=http://localhost:9093'
+      - RUST_LOG=info
     restart: unless-stopped
     networks:
       - monitoring
 
 volumes:
-  prometheus_data:
-  alertmanager_data:
+  sammy_db:
 
 networks:
   monitoring:

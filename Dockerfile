@@ -3,9 +3,10 @@ FROM rust:1.88-alpine as builder
 
 WORKDIR /app
 
-# Install build dependencies
+# Install build dependencies (gcc required for rusqlite bundled SQLite compilation)
 RUN apk add --no-cache \
     musl-dev \
+    gcc \
     openssl-dev \
     openssl-libs-static \
     pkgconfig
@@ -26,14 +27,15 @@ RUN cargo build --release --target x86_64-unknown-linux-musl
 FROM alpine:latest
 
 # Install minimal runtime dependencies
-RUN apk add --no-cache \
-    ca-certificates \
-    curl
+RUN apk add --no-cache ca-certificates
 
 # Create a non-root user
 RUN adduser -D -s /bin/sh sammy
 
 WORKDIR /app
+
+# Create data directory for SQLite database
+RUN mkdir -p /app/data && chown sammy:sammy /app/data
 
 # Copy the statically linked binary
 COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/sammy_monitor /usr/local/bin/sammy_monitor
@@ -44,12 +46,7 @@ RUN chown -R sammy:sammy /app
 # Switch to non-root user
 USER sammy
 
-# Expose only the consolidated port
-EXPOSE 3000
-
-# Health check using metrics endpoint
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3000/metrics || exit 1
+HEALTHCHECK NONE
 
 # Default command - settings.toml should be mounted as a volume
 CMD ["sammy_monitor", "--settings", "/app/settings.toml"]
