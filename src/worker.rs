@@ -72,7 +72,7 @@ impl Worker {
         let alert_states = settings
             .monitors
             .iter()
-            .map(|m| (m.id, MonitorAlertState::Unknown))
+            .map(|m| (m.id(), MonitorAlertState::Unknown))
             .collect();
 
         Self {
@@ -121,7 +121,7 @@ impl Worker {
                 continue;
             }
 
-            let should_run = match self.last_run_times.get(&monitor.id) {
+            let should_run = match self.last_run_times.get(&monitor.id()) {
                 Some(last_run) => {
                     let time_since_last = now.duration_since(*last_run);
                     let interval_duration = Duration::from_secs(monitor.interval * 60);
@@ -132,7 +132,7 @@ impl Worker {
 
             if should_run {
                 monitors_to_check.push(monitor.clone());
-                self.last_run_times.insert(monitor.id, now);
+                self.last_run_times.insert(monitor.id(), now);
             }
         }
 
@@ -163,7 +163,7 @@ impl Worker {
         match self
             .client
             .get(&monitor.url)
-            .header("X-Monitor-Id", monitor.id.to_string())
+            .header("X-Monitor-Id", monitor.id().to_string())
             .send()
             .await
         {
@@ -173,7 +173,7 @@ impl Worker {
                 let success = response.status().is_success();
 
                 MonitorResult {
-                    monitor_id: monitor.id,
+                    monitor_id: monitor.id(),
                     monitor_name: monitor.name.clone(),
                     url: monitor.url.clone(),
                     success,
@@ -191,7 +191,7 @@ impl Worker {
                 let response_time = start_time.elapsed().as_millis() as u64;
 
                 MonitorResult {
-                    monitor_id: monitor.id,
+                    monitor_id: monitor.id(),
                     monitor_name: monitor.name.clone(),
                     url: monitor.url.clone(),
                     success: false,
@@ -250,7 +250,7 @@ impl Worker {
 
         let current_state = self
             .alert_states
-            .get(&monitor.id)
+            .get(&monitor.id())
             .cloned()
             .unwrap_or(MonitorAlertState::Unknown);
 
@@ -279,7 +279,7 @@ impl Worker {
             }
         };
 
-        self.alert_states.insert(monitor.id, new_state);
+        self.alert_states.insert(monitor.id(), new_state);
     }
 
     async fn send_down_alert(&self, monitor: &MonitorConfig, result: &MonitorResult) {
@@ -366,7 +366,6 @@ mod tests {
 
     fn create_test_monitor(name: &str, url: &str, enabled: bool) -> MonitorConfig {
         MonitorConfig {
-            id: Uuid::new_v4(),
             name: name.to_string(),
             url: url.to_string(),
             interval: 60,
@@ -446,7 +445,7 @@ mod tests {
 
         let result = worker.check_monitor(&monitor).await;
 
-        assert_eq!(result.monitor_id, monitor.id);
+        assert_eq!(result.monitor_id, monitor.id());
         assert_eq!(result.monitor_name, monitor.name);
         assert_eq!(result.url, monitor.url);
     }
@@ -455,21 +454,18 @@ mod tests {
     fn test_interval_scheduling() {
         let monitors = vec![
             MonitorConfig {
-                id: Uuid::new_v4(),
                 name: "1min interval".to_string(),
                 url: "https://example1.com".to_string(),
                 interval: 1,
                 enabled: true,
             },
             MonitorConfig {
-                id: Uuid::new_v4(),
                 name: "2min interval".to_string(),
                 url: "https://example2.com".to_string(),
                 interval: 2,
                 enabled: true,
             },
             MonitorConfig {
-                id: Uuid::new_v4(),
                 name: "Disabled".to_string(),
                 url: "https://disabled.com".to_string(),
                 interval: 1,
@@ -486,7 +482,7 @@ mod tests {
         let now = std::time::Instant::now();
         for monitor in &monitors {
             if monitor.enabled {
-                let should_run = match worker.last_run_times.get(&monitor.id) {
+                let should_run = match worker.last_run_times.get(&monitor.id()) {
                     Some(last_run) => {
                         let time_since_last = now.duration_since(*last_run);
                         let interval_duration = Duration::from_secs(monitor.interval * 60);
@@ -502,12 +498,12 @@ mod tests {
             }
         }
 
-        worker.last_run_times.insert(monitors[0].id, now);
-        worker.last_run_times.insert(monitors[1].id, now);
+        worker.last_run_times.insert(monitors[0].id(), now);
+        worker.last_run_times.insert(monitors[1].id(), now);
 
         for monitor in &monitors {
             if monitor.enabled {
-                let should_run = match worker.last_run_times.get(&monitor.id) {
+                let should_run = match worker.last_run_times.get(&monitor.id()) {
                     Some(last_run) => {
                         let time_since_last = now.duration_since(*last_run);
                         let interval_duration = Duration::from_secs(monitor.interval * 60);
@@ -534,14 +530,14 @@ mod tests {
         // Initial state is Unknown — first failure goes to FailingNoAlert{1}
         let state = worker
             .alert_states
-            .get(&monitor.id)
+            .get(&monitor.id())
             .cloned()
             .unwrap_or(MonitorAlertState::Unknown);
         assert!(matches!(state, MonitorAlertState::Unknown));
 
         // Simulate 4 failures (threshold=5, not yet Down)
         for i in 1..5u32 {
-            let new_state = match worker.alert_states[&monitor.id].clone() {
+            let new_state = match worker.alert_states[&monitor.id()].clone() {
                 MonitorAlertState::FailingNoAlert { consecutive_failures } => {
                     MonitorAlertState::FailingNoAlert {
                         consecutive_failures: consecutive_failures + 1,
@@ -551,8 +547,8 @@ mod tests {
                     consecutive_failures: 1,
                 },
             };
-            worker.alert_states.insert(monitor.id, new_state);
-            let state = &worker.alert_states[&monitor.id];
+            worker.alert_states.insert(monitor.id(), new_state);
+            let state = &worker.alert_states[&monitor.id()];
             assert!(
                 matches!(state, MonitorAlertState::FailingNoAlert { consecutive_failures } if *consecutive_failures == i),
                 "Expected FailingNoAlert with count {i}"
@@ -560,7 +556,7 @@ mod tests {
         }
 
         // 5th failure should reach threshold
-        let new_state = match worker.alert_states[&monitor.id].clone() {
+        let new_state = match worker.alert_states[&monitor.id()].clone() {
             MonitorAlertState::FailingNoAlert { consecutive_failures } => {
                 let new_count = consecutive_failures + 1;
                 if new_count >= 5 {
@@ -573,7 +569,7 @@ mod tests {
             }
             s => s,
         };
-        worker.alert_states.insert(monitor.id, new_state);
-        assert!(matches!(worker.alert_states[&monitor.id], MonitorAlertState::Down));
+        worker.alert_states.insert(monitor.id(), new_state);
+        assert!(matches!(worker.alert_states[&monitor.id()], MonitorAlertState::Down));
     }
 }

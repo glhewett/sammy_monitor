@@ -40,7 +40,7 @@ dotenvy = "0.15"
 
 # Time and IDs
 chrono = { version = "0.4", features = ["serde"] }
-uuid = { version = "1.7", features = ["v4", "serde"] }
+uuid = { version = "1.7", features = ["v4", "v5", "serde"] }
 
 # Logging
 log = "0.4"

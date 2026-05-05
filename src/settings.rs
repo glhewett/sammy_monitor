@@ -8,11 +8,16 @@ use uuid::Uuid;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct MonitorConfig {
-    pub id: Uuid,
     pub name: String,
     pub url: String,
     pub interval: u64,
     pub enabled: bool,
+}
+
+impl MonitorConfig {
+    pub fn id(&self) -> Uuid {
+        Uuid::new_v5(&Uuid::NAMESPACE_URL, self.url.as_bytes())
+    }
 }
 
 /// SMTP configuration loaded from environment variables.
@@ -174,14 +179,12 @@ mod tests {
     fn test_settings_from_str_valid() {
         let toml_content = r#"
 [[monitors]]
-id = "550e8400-e29b-41d4-a716-446655440001"
 name = "Example Site"
 url = "https://example.com"
 interval = 60
 enabled = true
 
 [[monitors]]
-id = "550e8400-e29b-41d4-a716-446655440002"
 name = "Google"
 url = "https://google.com"
 interval = 30
@@ -230,7 +233,6 @@ monitors = []
         let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let toml_content = r#"
 [[monitors]]
-id = "550e8400-e29b-41d4-a716-446655440003"
 name = "Test Site"
 url = "https://test.com"
 interval = 45
@@ -280,7 +282,6 @@ enabled = true
     #[test]
     fn test_monitor_config_fields() {
         let monitor = MonitorConfig {
-            id: uuid::Uuid::parse_str("550e8400-e29b-41d4-a716-446655440004").unwrap(),
             name: "Test Monitor".to_string(),
             url: "https://example.org".to_string(),
             interval: 120,
@@ -297,7 +298,6 @@ enabled = true
     fn test_monitor_config_enabled_true() {
         let toml_content = r#"
 [[monitors]]
-id = "550e8400-e29b-41d4-a716-446655440005"
 name = "Enabled Monitor"
 url = "https://enabled.com"
 interval = 60
@@ -314,7 +314,6 @@ enabled = true
     fn test_monitor_config_enabled_false() {
         let toml_content = r#"
 [[monitors]]
-id = "550e8400-e29b-41d4-a716-446655440006"
 name = "Disabled Monitor"
 url = "https://disabled.com"
 interval = 60
@@ -331,21 +330,18 @@ enabled = false
     fn test_monitor_config_mixed_enabled_states() {
         let toml_content = r#"
 [[monitors]]
-id = "550e8400-e29b-41d4-a716-446655440007"
 name = "First Monitor"
 url = "https://first.com"
 interval = 60
 enabled = true
 
 [[monitors]]
-id = "550e8400-e29b-41d4-a716-446655440008"
 name = "Second Monitor"
 url = "https://second.com"
 interval = 30
 enabled = false
 
 [[monitors]]
-id = "550e8400-e29b-41d4-a716-446655440009"
 name = "Third Monitor"
 url = "https://third.com"
 interval = 45
@@ -369,7 +365,6 @@ enabled = true
     fn test_monitor_config_missing_enabled_field() {
         let toml_content = r#"
 [[monitors]]
-id = "550e8400-e29b-41d4-a716-44665544000a"
 name = "Missing Enabled Field"
 url = "https://missing.com"
 interval = 60
@@ -383,21 +378,18 @@ interval = 60
     fn test_settings_get_enabled_monitors() {
         let toml_content = r#"
 [[monitors]]
-id = "550e8400-e29b-41d4-a716-44665544000b"
 name = "Active Monitor 1"
 url = "https://active1.com"
 interval = 60
 enabled = true
 
 [[monitors]]
-id = "550e8400-e29b-41d4-a716-44665544000c"
 name = "Inactive Monitor"
 url = "https://inactive.com"
 interval = 30
 enabled = false
 
 [[monitors]]
-id = "550e8400-e29b-41d4-a716-44665544000d"
 name = "Active Monitor 2"
 url = "https://active2.com"
 interval = 45
@@ -419,7 +411,6 @@ enabled = true
     #[test]
     fn test_monitor_config_enable_disable() {
         let mut monitor = MonitorConfig {
-            id: uuid::Uuid::parse_str("550e8400-e29b-41d4-a716-44665544000e").unwrap(),
             name: "Toggle Monitor".to_string(),
             url: "https://toggle.com".to_string(),
             interval: 60,
