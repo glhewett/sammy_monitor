@@ -152,7 +152,6 @@ impl Settings {
 
         Ok(settings)
     }
-
 }
 
 impl FromStr for Settings {
@@ -473,7 +472,14 @@ enabled = true
         assert_eq!(config.to_addresses, vec!["ops@test.com", "dev@test.com"]);
         assert!(config.smtp_use_tls);
 
-        for key in &["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "SMTP_FROM", "SMTP_TO"] {
+        for key in &[
+            "SMTP_HOST",
+            "SMTP_PORT",
+            "SMTP_USER",
+            "SMTP_PASS",
+            "SMTP_FROM",
+            "SMTP_TO",
+        ] {
             std::env::remove_var(key);
         }
     }

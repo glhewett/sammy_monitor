@@ -1,7 +1,7 @@
 use anyhow::Result;
 use lettre::{
-    message::header::ContentType, transport::smtp::authentication::Credentials,
-    AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
+    message::header::ContentType, transport::smtp::authentication::Credentials, AsyncSmtpTransport,
+    AsyncTransport, Message, Tokio1Executor,
 };
 use log::{error, info, warn};
 use reqwest::Client;
@@ -262,7 +262,9 @@ impl Worker {
         } else {
             match current_state {
                 MonitorAlertState::Down => MonitorAlertState::Down,
-                MonitorAlertState::FailingNoAlert { consecutive_failures } => {
+                MonitorAlertState::FailingNoAlert {
+                    consecutive_failures,
+                } => {
                     let new_count = consecutive_failures + 1;
                     if new_count >= threshold {
                         self.send_down_alert(monitor, result).await;
@@ -538,11 +540,11 @@ mod tests {
         // Simulate 4 failures (threshold=5, not yet Down)
         for i in 1..5u32 {
             let new_state = match worker.alert_states[&monitor.id()].clone() {
-                MonitorAlertState::FailingNoAlert { consecutive_failures } => {
-                    MonitorAlertState::FailingNoAlert {
-                        consecutive_failures: consecutive_failures + 1,
-                    }
-                }
+                MonitorAlertState::FailingNoAlert {
+                    consecutive_failures,
+                } => MonitorAlertState::FailingNoAlert {
+                    consecutive_failures: consecutive_failures + 1,
+                },
                 _ => MonitorAlertState::FailingNoAlert {
                     consecutive_failures: 1,
                 },
@@ -557,7 +559,9 @@ mod tests {
 
         // 5th failure should reach threshold
         let new_state = match worker.alert_states[&monitor.id()].clone() {
-            MonitorAlertState::FailingNoAlert { consecutive_failures } => {
+            MonitorAlertState::FailingNoAlert {
+                consecutive_failures,
+            } => {
                 let new_count = consecutive_failures + 1;
                 if new_count >= 5 {
                     MonitorAlertState::Down
@@ -570,6 +574,9 @@ mod tests {
             s => s,
         };
         worker.alert_states.insert(monitor.id(), new_state);
-        assert!(matches!(worker.alert_states[&monitor.id()], MonitorAlertState::Down));
+        assert!(matches!(
+            worker.alert_states[&monitor.id()],
+            MonitorAlertState::Down
+        ));
     }
 }
